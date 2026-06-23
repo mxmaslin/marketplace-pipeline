@@ -1,0 +1,35 @@
+---
+description: Test patterns for marketplace-pipeline
+globs: tests/**/*.py
+alwaysApply: false
+---
+
+# Testing Rules
+
+## Required
+
+- `pytest-httpx` for Ozon, OpenAI, AmoCRM HTTP
+- `tmp_path` for idempotency store and pipeline `output_dir`
+- Mock env via `Settings(MOCK_PARSER=True, ...)` not global env mutation
+
+## Idempotency tests
+
+Always verify duplicate `create_task` returns `reused=True` and same `task_id`.
+
+AmoCRM real-mode tests need **two** httpx responses: empty task list (search) then create.
+
+## Coverage
+
+Run `pytest --cov=marketplace_pipeline --cov-report=term-missing` after changes.
+
+Add tests in `test_coverage.py` for edge branches, not duplicate e2e.
+
+## Anti-patterns
+
+```python
+# BAD — real network in tests
+requests.get("https://www.ozon.ru/...")
+
+# GOOD
+httpx_mock.add_response(json={...})
+```

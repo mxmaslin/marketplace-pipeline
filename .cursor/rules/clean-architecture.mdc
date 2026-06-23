@@ -1,0 +1,37 @@
+---
+description: Clean Architecture layer boundaries for marketplace-pipeline
+alwaysApply: true
+---
+
+# Clean Architecture Rules
+
+## Dependency direction
+
+```
+interfaces → application → domain ← infrastructure
+```
+
+**Domain** must not import from `application`, `infrastructure`, or `interfaces`.
+
+## Package map
+
+| Layer | Path | Responsibility |
+|-------|------|----------------|
+| Domain | `domain/` | Entities, VOs, ports, domain services |
+| Application | `application/` | Use cases, app DTOs |
+| Infrastructure | `infrastructure/` | Adapters, config, HTTP, Container |
+| Interfaces | `interfaces/` | CLI |
+
+## New code checklist
+
+1. Business logic → `domain/services/` or entity methods
+2. Orchestration → `application/use_cases/`
+3. External API → new adapter implementing a **port**
+4. Wire in `infrastructure/composition/container.py`
+5. Tests: domain=unit, adapters=pytest-httpx
+
+## Legacy shims
+
+Root `models.py`, `pipeline.py`, `parser/*` are re-exports. Do not add logic there.
+
+See [docs/CLEAN_ARCHITECTURE.md](../../docs/CLEAN_ARCHITECTURE.md).

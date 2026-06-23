@@ -1,0 +1,65 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from marketplace_pipeline.application.use_cases.run_pipeline import RunPipelineUseCase
+from marketplace_pipeline.infrastructure.adapters.crm.amocrm_gateway import (
+    AmoCrmGateway,
+    build_idempotency_store,
+)
+from marketplace_pipeline.infrastructure.adapters.llm.openai_classifier import (
+    OpenAiSegmentClassifier,
+)
+from marketplace_pipeline.infrastructure.adapters.parsers.mock_collector import MockCatalogCollector
+from marketplace_pipeline.infrastructure.adapters.parsers.ozon_collector import OzonCatalogCollector
+from marketplace_pipeline.infrastructure.adapters.persistence import (
+    json_enriched_product_repository as product_repo,
+)
+from marketplace_pipeline.infrastructure.config.settings import Settings
+from marketplace_pipeline.infrastructure.http.http_client import HttpClient
+
+
+class Container:
+    """Composition root: wires ports to adapters from settings."""
+
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        http_client: HttpClient | None = None,
+        output_dir: Path | None = None,
+    ) -> None:
+        self.settings = settings
+        self.output_dir = output_dir or Path("data")
+        self.http_client = http_client or HttpClient(
+            max_retries=settings.http_max_retries,
+            base_delay=settings.http_retry_base_delay,
+            timeout=settings.ozon_request_timeout,
+        )
+
+    def catalog_collector(self) -> MockCatalogCollector | OzonCatalogCollector:
+        if self.settings.mock_parser:
+            return MockCatalogCollector(self.settings)
+        return OzonCatalogCollector(self.settings, http_client=self.http_client)
+
+    def segment_classifier(self) -> OpenAiSegmentClassifier:
+        return OpenAiSegmentClassifier(self.settings, http_client=self.http_client)
+
+    def crm_gateway(self) -> AmoCrmGateway:
+        store = build_idempotency_store(
+            self.settings,
+            self.output_dir / "crm_idempotency.json",
+        )
+        return AmoCrmGateway(self.settings, store, http_client=self.http_client)
+
+    def product_repository(self) -> product_repo.JsonEnrichedProductRepository:
+        return product_repo.JsonEnrichedProductRepository(self.output_dir)
+
+    def run_pipeline_use_case(self) -> RunPipelineUseCase:
+        return RunPipelineUseCase(
+            catalog_collector=self.catalog_collector(),
+            segment_classifier=self.segment_classifier(),
+            crm_gateway=self.crm_gateway(),
+            product_repository=self.product_repository(),
+            collection_target=self.settings.collection_target,
+        )

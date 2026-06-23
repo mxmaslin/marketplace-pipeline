@@ -1,0 +1,35 @@
+---
+description: Core conventions for marketplace-pipeline (test assignment)
+alwaysApply: true
+---
+
+# Marketplace Pipeline — Core Rules
+
+Read `AGENTS.md` before non-trivial changes.
+
+## Stack
+
+Python 3.11 · Pydantic v2 · httpx · tenacity · pytest · ruff
+
+## Business invariants
+
+- Partial collection (< target) is success when category exhausted
+- Parser errors → graceful degradation, never crash on partial data
+- CRM idempotency: SHA-256(title+description), store at `data/crm_idempotency.json`
+- `MOCK_PARSER` is env-only (no separate mock HTTP server)
+- Segment «Стандарт» classified but not sent to CRM
+
+## Code style
+
+- External HTTP only through `HttpClient`
+- Settings via `config.Settings`, never raw `os.environ` in modules
+- New IO schemas as Pydantic models in `models.py`
+- Line length 100, ruff clean
+
+## Before commit
+
+```bash
+ruff check src tests && pytest
+```
+
+Coverage must stay ≥95%.

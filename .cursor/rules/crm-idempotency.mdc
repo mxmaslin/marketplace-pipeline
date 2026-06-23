@@ -1,0 +1,36 @@
+---
+description: CRM and idempotency conventions
+globs: src/marketplace_pipeline/crm/**/*.py
+alwaysApply: false
+---
+
+# CRM Module Rules
+
+## Idempotency flow
+
+1. `compute_idempotency_key(CRMTaskPayload)` — stable hash
+2. Check `IdempotencyStore` → return `CRMTaskResult(reused=True)`
+3. Remote reconcile: scan AmoCRM tasks for `[pipeline:idempotency:KEY]`
+4. On create: append marker to task text, persist store
+
+## AmoCRM task body format
+
+```
+{title}
+
+- {name}: {price} {currency} — {url}
+...
+
+[pipeline:idempotency:{sha256}]
+```
+
+## Do not
+
+- Skip idempotency check on "quick fix" paths
+- Change key algorithm without migration note in docs
+- Use `hash()` for keys (not stable across runs) — use SHA-256
+
+## New CRM provider
+
+Implement `create_task(payload) -> CRMTaskResult` with same idempotency contract.
+Wire in `pipeline.py`; add factory if multiple CRMs supported.

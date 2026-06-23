@@ -1,0 +1,15 @@
+---
+description: Parser adapters implement CatalogCollectorPort
+globs: src/marketplace_pipeline/infrastructure/adapters/parsers/**/*.py
+alwaysApply: false
+---
+
+# Parser Adapter Rules
+
+Implement `CatalogCollectorPort.collect() -> CollectionResult`.
+
+- Return domain `Product` entities
+- Never raise from `collect()` on HTTP errors — set `degraded=True`
+- `MockCatalogCollector` when `MOCK_PARSER=true` (wired in Container)
+
+Legacy names: `OzonParser`, `MockParser` are shims in `parser/`.
