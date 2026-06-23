@@ -43,6 +43,8 @@ class Settings(BaseSettings):
 
     http_max_retries: int = Field(default=5, alias="HTTP_MAX_RETRIES")
     http_retry_base_delay: float = Field(default=1.0, alias="HTTP_RETRY_BASE_DELAY")
+    job_db_path: str = Field(default="data/jobs.sqlite", alias="JOB_DB_PATH")
+    api_job_workers: int = Field(default=2, alias="API_JOB_WORKERS")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     @property

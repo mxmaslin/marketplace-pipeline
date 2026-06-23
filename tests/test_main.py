@@ -1,15 +1,18 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from marketplace_pipeline.interfaces.cli.main import main
 
 
 def test_main_success() -> None:
     with patch("marketplace_pipeline.interfaces.cli.main.Container") as container_cls:
-        use_case = container_cls.return_value.run_pipeline_use_case.return_value
-        use_case.execute.return_value.collection_result.collected_count = 10
-        use_case.execute.return_value.enriched_products = [1, 2]
-        use_case.execute.return_value.crm_tasks = [1]
-        use_case.execute.return_value.output_path = None
+        result = MagicMock()
+        result.collection_result.collected_count = 10
+        result.enriched_products = [1, 2]
+        result.crm_tasks = [1]
+        result.output_path = None
+        container_cls.return_value.run_pipeline_use_case.return_value.execute.return_value = (
+            result
+        )
         assert main() == 0
 
 

@@ -1,4 +1,4 @@
-.PHONY: install lint test run docker clean coverage
+.PHONY: install lint test run api docker clean coverage ci
 
 install:
 	pip install -e ".[dev]"
@@ -14,6 +14,9 @@ coverage:
 
 run:
 	MOCK_PARSER=true MOCK_LLM=true MOCK_CRM=true DEMO_MODE=true marketplace-pipeline
+
+api:
+	MOCK_PARSER=true MOCK_LLM=true MOCK_CRM=true DEMO_MODE=true marketplace-pipeline-api
 
 docker:
 	docker compose up --build

@@ -5,3 +5,14 @@ services:
       - .env.example
     volumes:
       - ./data:/app/data
+    command: ["marketplace-pipeline"]
+
+  api:
+    build: .
+    env_file:
+      - .env.example
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    command: ["marketplace-pipeline-api"]

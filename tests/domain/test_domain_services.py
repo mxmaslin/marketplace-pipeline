@@ -3,7 +3,6 @@
 from datetime import UTC, datetime
 
 from marketplace_pipeline.domain.entities.enriched_product import EnrichedProduct
-from marketplace_pipeline.domain.entities.product import Product
 from marketplace_pipeline.domain.models.crm_task import CrmTaskRequest
 from marketplace_pipeline.domain.services.crm_task_factory import CrmTaskFactory
 from marketplace_pipeline.domain.services.idempotency_policy import (

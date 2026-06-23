@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "marketplace-pipeline"
-version = "0.2.0"
+version = "0.3.0"
 description = "Marketplace analytics pipeline with LLM classification and CRM integration"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,6 +13,8 @@ dependencies = [
     "pydantic>=2.7.0",
     "pydantic-settings>=2.3.0",
     "tenacity>=8.3.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
 ]
 
 [project.optional-dependencies]
@@ -25,6 +27,7 @@ dev = [
 
 [project.scripts]
 marketplace-pipeline = "marketplace_pipeline.interfaces.cli.main:main"
+marketplace-pipeline-api = "marketplace_pipeline.interfaces.api.main:run"
 
 [tool.setuptools.packages.find]
 where = ["src"]

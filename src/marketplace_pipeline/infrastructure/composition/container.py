@@ -55,11 +55,11 @@ class Container:
     def product_repository(self) -> product_repo.JsonEnrichedProductRepository:
         return product_repo.JsonEnrichedProductRepository(self.output_dir)
 
-    def run_pipeline_use_case(self) -> RunPipelineUseCase:
+    def run_pipeline_use_case(self, collection_target: int | None = None) -> RunPipelineUseCase:
         return RunPipelineUseCase(
             catalog_collector=self.catalog_collector(),
             segment_classifier=self.segment_classifier(),
             crm_gateway=self.crm_gateway(),
             product_repository=self.product_repository(),
-            collection_target=self.settings.collection_target,
+            collection_target=collection_target or self.settings.collection_target,
         )

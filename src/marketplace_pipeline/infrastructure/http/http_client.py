@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from contextlib import AbstractContextManager
+from typing import Any, Self
 
 import httpx
 from tenacity import (
@@ -20,8 +21,8 @@ class RateLimitError(Exception):
         super().__init__(f"Rate limited: HTTP {response.status_code}")
 
 
-class HttpClient:
-    """HTTP client with exponential retries and explicit 429 handling."""
+class HttpClient(AbstractContextManager["HttpClient"]):
+    """HTTP client with connection pooling, retries, and 429 handling."""
 
     def __init__(
         self,
@@ -29,10 +30,22 @@ class HttpClient:
         max_retries: int = 5,
         base_delay: float = 1.0,
         timeout: float = 30.0,
+        limits: httpx.Limits | None = None,
     ) -> None:
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.timeout = timeout
+        self._limits = limits or httpx.Limits(max_connections=100, max_keepalive_connections=20)
+        self._client = httpx.Client(timeout=self.timeout, limits=self._limits)
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.close()
+
+    def close(self) -> None:
+        self._client.close()
 
     def _build_retry(self) -> Any:
         return retry(
@@ -51,13 +64,12 @@ class HttpClient:
     ) -> httpx.Response:
         @self._build_retry()
         def _request() -> httpx.Response:
-            with httpx.Client(timeout=self.timeout) as client:
-                response = client.get(url, headers=headers, params=params)
-                if response.status_code == 429:
-                    logger.warning("Received 429 from %s", url)
-                    raise RateLimitError(response)
-                response.raise_for_status()
-                return response
+            response = self._client.get(url, headers=headers, params=params)
+            if response.status_code == 429:
+                logger.warning("Received 429 from %s", url)
+                raise RateLimitError(response)
+            response.raise_for_status()
+            return response
 
         return _request()
 
@@ -70,12 +82,11 @@ class HttpClient:
     ) -> httpx.Response:
         @self._build_retry()
         def _request() -> httpx.Response:
-            with httpx.Client(timeout=self.timeout) as client:
-                response = client.post(url, headers=headers, json=json)
-                if response.status_code == 429:
-                    logger.warning("Received 429 from %s", url)
-                    raise RateLimitError(response)
-                response.raise_for_status()
-                return response
+            response = self._client.post(url, headers=headers, json=json)
+            if response.status_code == 429:
+                logger.warning("Received 429 from %s", url)
+                raise RateLimitError(response)
+            response.raise_for_status()
+            return response
 
         return _request()

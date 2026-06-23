@@ -10,7 +10,18 @@
 | LLM | OpenAI (`gpt-4o-mini`), батчинг по `LLM_BATCH_SIZE` |
 | CRM | AmoCRM REST API v4 |
 
-## Быстрый старт
+## API (production-style demo)
+
+```bash
+make api
+# OpenAPI: http://localhost:8000/docs
+curl -X POST http://localhost:8000/api/v1/pipeline/jobs -H "Content-Type: application/json" -d '{"collection_target": 50}'
+```
+
+Async jobs (202), SQLite store, `/health`, `/ready`, `/metrics`, `X-Request-ID`.  
+Полный сценарий для HR: [docs/HR_DEMO.md](docs/HR_DEMO.md).
+
+## Быстрый старт (CLI)
 
 ```bash
 python -m venv .venv
@@ -69,7 +80,7 @@ interfaces/cli → Container → RunPipelineUseCase → ports → adapters
 | [AGENTS.md](AGENTS.md) | Инструкции для AI-агентов |
 | [vision.md](vision.md) | Исходное ТЗ |
 | [AI_USAGE.md](AI_USAGE.md) | Лог использования ИИ (deliverable) |
-| [docs/CLEAN_ARCHITECTURE.md](docs/CLEAN_ARCHITECTURE.md) | Clean Architecture + DDD layers |
+| [docs/HR_DEMO.md](docs/HR_DEMO.md) | Сценарий демо для HR (API, curl, talking points) |
 | [docs/ENV.md](docs/ENV.md) | Переменные окружения |
 | [docs/TESTING.md](docs/TESTING.md) | Тестирование |
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Как контрибутить |
