@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Header, HTTPException, Request, status
 
 from marketplace_pipeline.application.use_cases.pipeline_jobs import (
     GetPipelineJobUseCase,
@@ -33,7 +33,11 @@ def _to_response(job: PipelineJob) -> JobResponse:
     summary="Submit pipeline job",
     description="Accepts pipeline run asynchronously. Poll GET /{job_id} for status.",
 )
-async def create_job(body: JobCreateRequest, request: Request) -> JobResponse:
+async def create_job(
+    body: JobCreateRequest,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> JobResponse:
     settings = request.app.state.settings
     target = body.collection_target or settings.collection_target
     correlation_id = getattr(request.state, "request_id", None)
@@ -52,11 +56,13 @@ async def create_job(body: JobCreateRequest, request: Request) -> JobResponse:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     job = PipelineJob(collection_target=target, correlation_id=correlation_id)
-    SubmitPipelineJobUseCase(
+    job, is_replay = SubmitPipelineJobUseCase(
         request.app.state.job_repository,
         request.app.state.job_runner,
-    ).execute(job)
-    request.app.state.metrics.inc_submitted()
+        request.app.state.job_idempotency_store,
+    ).execute(job, idempotency_key=idempotency_key)
+    if not is_replay:
+        request.app.state.metrics.inc_submitted()
     return _to_response(job)
 
 

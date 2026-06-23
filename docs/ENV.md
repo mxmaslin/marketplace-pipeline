@@ -57,7 +57,8 @@ All settings loaded via `pydantic-settings` from env and optional `.env` file.
 | `JOB_DB_PATH` | data/jobs.sqlite | SQLite file for async job state |
 | `API_JOB_WORKERS` | 2 | Thread pool size for background pipeline runs |
 | `API_KEY` | (empty) | When set, protects `/api/v1/*` (header `X-API-Key` or Bearer) |
-| `API_RATE_LIMIT_PER_MINUTE` | 60 | Per-IP sliding window; `0` disables |
+| `API_RATE_LIMIT_PER_MINUTE` | 60 | Per-IP sliding window on `/api/v1/*`; `0` disables. Public paths exempt. Uses Redis when `REDIS_URL` set |
+| `JOB_IDEMPOTENCY_TTL_SECONDS` | 86400 | Job submit idempotency TTL when `Idempotency-Key` header is sent |
 | `LOG_JSON` | false | Emit structured JSON logs to stdout |
 
 Used by `marketplace-pipeline-api` / `make api`. CLI-only runs ignore these unless API is started.
@@ -69,7 +70,7 @@ Used by `marketplace-pipeline-api` / `make api`. CLI-only runs ignore these unle
 | `JOB_STORE_BACKEND` | sqlite | `sqlite` or `postgres` |
 | `DATABASE_URL` | (empty) | Required when `JOB_STORE_BACKEND=postgres` |
 | `JOB_RUNNER_BACKEND` | thread | `thread` (single-node) or `celery` |
-| `REDIS_URL` | redis://localhost:6379/0 | Broker, shared metrics, Redis idempotency |
+| `REDIS_URL` | (empty) | Celery broker, shared metrics, Redis idempotency, distributed API rate limit |
 | `CELERY_BROKER_URL` | (empty) | Defaults to `REDIS_URL` |
 | `CRM_IDEMPOTENCY_BACKEND` | file | `file` or `redis` |
 | `OTEL_ENABLED` | false | OpenTelemetry traces |

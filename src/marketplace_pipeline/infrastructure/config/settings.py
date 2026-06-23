@@ -72,6 +72,7 @@ class Settings(BaseSettings):
 
     api_key: str = Field(default="", alias="API_KEY")
     api_rate_limit_per_minute: int = Field(default=60, alias="API_RATE_LIMIT_PER_MINUTE")
+    job_idempotency_ttl_seconds: int = Field(default=86_400, alias="JOB_IDEMPOTENCY_TTL_SECONDS")
 
     otel_enabled: bool = Field(default=False, alias="OTEL_ENABLED")
     otel_service_name: str = Field(default="marketplace-pipeline", alias="OTEL_SERVICE_NAME")

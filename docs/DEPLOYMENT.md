@@ -100,7 +100,7 @@ Built-in (API):
 Security (production):
 
 - Set `API_KEY` — required for `/api/v1/*` via `X-API-Key` or `Authorization: Bearer`
-- `API_RATE_LIMIT_PER_MINUTE` — per-IP rate limit (default 60/min)
+- `API_RATE_LIMIT_PER_MINUTE` — per-IP rate limit on `/api/v1/*` (default 60/min); public paths exempt; Redis-backed when `REDIS_URL` set
 
 Suggested alerts:
 
@@ -114,5 +114,7 @@ Suggested alerts:
 - **Multi-node:** `pip install -e ".[scale]"` — see [docs/SCALE.md](SCALE.md)
 - `docker compose --profile scale up --build` — Postgres + Redis + API + Celery worker
 - API replicas share job state via PostgreSQL; workers scale horizontally via Celery
-- Redis: Celery broker, CRM idempotency, shared Prometheus job counters
+- Redis: Celery broker, CRM idempotency, job submit idempotency (`Idempotency-Key`), shared Prometheus job counters
+- Enriched product output: JSON file (single-node) or PostgreSQL snapshots (`enriched_product_snapshots`) when `JOB_STORE_BACKEND=postgres`
+- Run `alembic upgrade head` before scale deploy — see [docs/SCALE.md](SCALE.md)
 - Optional: `OTEL_ENABLED`, `SENTRY_DSN` for distributed tracing / errors

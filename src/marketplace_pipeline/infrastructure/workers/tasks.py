@@ -9,9 +9,9 @@ from marketplace_pipeline.infrastructure.composition.factories import (
 )
 from marketplace_pipeline.infrastructure.config.settings import get_settings
 from marketplace_pipeline.infrastructure.logging import configure_logging
+from marketplace_pipeline.infrastructure.observability.metrics import MetricsRegistry
 from marketplace_pipeline.infrastructure.services.pipeline_job_executor import execute_pipeline_job
 from marketplace_pipeline.infrastructure.workers.celery_app import celery_app
-from marketplace_pipeline.interfaces.api.metrics import MetricsRegistry
 
 
 @celery_app.task(name="pipeline.execute_job")

@@ -18,28 +18,35 @@
          data/enriched_products.json
 ```
 
-### API layer (v0.4 — production hardening)
+### API layer (v0.5 — production hardening)
 
 ```
 Client ──POST /api/v1/pipeline/jobs──▶ FastAPI (202)
-              │  (API_KEY + rate limit)        │
+              │  (API_KEY + rate limit on /api/v1/*) │
+              │  optional Idempotency-Key header      │
               │                              ▼
               │                    validate_pipeline_prerequisites
               │                              │
               │                              ▼
               │                    SubmitPipelineJobUseCase
+              │                    (+ job idempotency store)
               │                              │
               │                              ▼
-              │                    PipelineJobRunner (thread pool)
+              │                    PipelineJobRunner (thread | Celery)
               │                              │
               │                              ▼
               └────GET /jobs/{id}──── RunPipelineUseCase → adapters
                                               │
                                               ▼
-                                    SQLite WAL (data/jobs.sqlite)
+                              SQLite WAL | PostgreSQL (Alembic schema)
 ```
 
-Long-running work never blocks the HTTP thread. Job status persisted in SQLite; poll until `completed` or `failed`. Production: set `API_KEY`, `LOG_JSON=true`; `/ready` checks DB + data dir.
+Long-running work never blocks the HTTP thread. Job status persisted in SQLite or PostgreSQL; poll until `completed` or `failed`.
+
+Production: `API_KEY` (`secrets.compare_digest`), `LOG_JSON=true`; `/ready` checks DB + data dir (+ Redis in scale).  
+`/health`, `/ready`, `/metrics`, `/docs` are public — no auth or rate limit.  
+Rate limit: in-memory per replica, or Redis sliding window when `REDIS_URL` is set.  
+Metrics: `MetricsRegistry` in `infrastructure/observability/metrics.py` (in-memory or Redis counters).
 
 ## Data model
 
@@ -84,7 +91,7 @@ Extends `Product` with `segment: PriceSegment` (Эконом | Стандарт 
 ### OzonParser
 
 - Uses Ozon composer API (`OZON_API_BASE_URL?url=<category path>`)
-- Paginates `?page=N` until target count or empty page
+- Paginates `?page=N` until target count or empty page (`OZON_PAGE_SIZE` per request)
 - Regex extraction from `widgetStates` JSON strings
 - On exception: `degraded=True`, return partial list
 
@@ -114,7 +121,7 @@ Extends `Product` with `segment: PriceSegment` (Эконом | Стандарт 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/v1/pipeline/jobs` | Submit job (202), body: `{ "collection_target": N }` optional |
+| POST | `/api/v1/pipeline/jobs` | Submit job (202), body: `{ "collection_target": N }` optional; header `Idempotency-Key` optional |
 | GET | `/api/v1/pipeline/jobs/{id}` | Poll job status |
 | GET | `/api/v1/pipeline/jobs` | List recent jobs (`limit` query param) |
 | GET | `/health` | Liveness |
@@ -122,7 +129,9 @@ Extends `Product` with `segment: PriceSegment` (Эконом | Стандарт 
 | GET | `/metrics` | Prometheus-style counters |
 | GET | `/docs` | OpenAPI UI |
 
-Middleware: `X-Request-ID`, `X-Response-Time-Ms`.
+Middleware: `X-Request-ID`, `X-Response-Time-Ms`, API key auth on `/api/v1/*`, rate limit on `/api/v1/*`.
+
+OpenAPI documents `ApiKeyAuth` / `BearerAuth` security schemes when `API_KEY` is set.
 
 ## Configuration
 
@@ -139,7 +148,8 @@ Single `Settings` class (`pydantic-settings`):
 | Wildberries | New parser class + factory branch |
 | Bitrix24 | New CRM client implementing same `create_task` contract |
 | YandexGPT | New classifier or strategy in `SegmentClassifier` |
-| PostgreSQL | Replace `SqliteJobRepository` or add enriched-product store |
+| PostgreSQL jobs | `PostgresJobRepository` + Alembic migrations (`pipeline_jobs`) |
+| PostgreSQL enriched output | `PostgresEnrichedProductRepository` (`enriched_product_snapshots`) |
 | Celery/RQ | Replace `PipelineJobRunner` thread pool; keep use cases |
 
 ## Failure modes

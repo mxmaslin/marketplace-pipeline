@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -119,8 +119,46 @@ def test_rate_limit_returns_429(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
 
     with TestClient(create_app()) as client:
         assert client.get("/health").status_code == 200
-        blocked = client.get("/health")
+        assert client.get("/health").status_code == 200
+        assert client.get("/api/v1/pipeline/jobs").status_code == 200
+        blocked = client.get("/api/v1/pipeline/jobs")
         assert blocked.status_code == 429
+
+
+def test_redis_rate_limit_returns_429(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MOCK_PARSER", "true")
+    monkeypatch.setenv("MOCK_LLM", "true")
+    monkeypatch.setenv("MOCK_CRM", "true")
+    monkeypatch.setenv("JOB_DB_PATH", str(tmp_path / "jobs.sqlite"))
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setenv("API_RATE_LIMIT_PER_MINUTE", "1")
+
+    mock_limiter = MagicMock()
+    mock_limiter.allow.side_effect = [True, False]
+    with patch(
+        "marketplace_pipeline.infrastructure.rate_limit.redis_sliding_window.RedisSlidingWindowRateLimiter",
+        return_value=mock_limiter,
+    ):
+        with TestClient(create_app()) as client:
+            assert client.get("/api/v1/pipeline/jobs").status_code == 200
+            blocked = client.get("/api/v1/pipeline/jobs")
+            assert blocked.status_code == 429
+
+
+def test_openapi_includes_security_when_api_key_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MOCK_PARSER", "true")
+    monkeypatch.setenv("MOCK_LLM", "true")
+    monkeypatch.setenv("MOCK_CRM", "true")
+    monkeypatch.setenv("JOB_DB_PATH", str(tmp_path / "jobs.sqlite"))
+    monkeypatch.setenv("API_KEY", "secret-key")
+
+    with TestClient(create_app()) as client:
+        schema = client.get("/openapi.json").json()
+        assert "ApiKeyAuth" in schema["components"]["securitySchemes"]
+        jobs_get = schema["paths"]["/api/v1/pipeline/jobs"]["get"]
+        assert {"ApiKeyAuth": []} in jobs_get["security"]
 
 
 def test_ready_checks_redis_when_celery_backend(
@@ -156,3 +194,68 @@ def test_pre_flight_validation_missing_openai_key(
         response = client.post("/api/v1/pipeline/jobs", json={"collection_target": 5})
         assert response.status_code == 422
         assert "OPENAI_API_KEY" in response.json()["detail"]
+
+
+def test_job_submit_idempotency_returns_same_job(api_client: TestClient) -> None:
+    headers = {"Idempotency-Key": "idem-test-key-1"}
+    first = api_client.post(
+        "/api/v1/pipeline/jobs",
+        json={"collection_target": 5},
+        headers=headers,
+    )
+    second = api_client.post(
+        "/api/v1/pipeline/jobs",
+        json={"collection_target": 99},
+        headers=headers,
+    )
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert first.json()["id"] == second.json()["id"]
+    assert first.json()["collection_target"] == 5
+
+
+def test_job_submit_idempotency_redis_mock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MOCK_PARSER", "true")
+    monkeypatch.setenv("MOCK_LLM", "true")
+    monkeypatch.setenv("MOCK_CRM", "true")
+    monkeypatch.setenv("JOB_DB_PATH", str(tmp_path / "jobs.sqlite"))
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+
+    stored: dict[str, str] = {}
+
+    def fake_set(key: str, value: str, *, nx: bool = False, ex: int | None = None) -> bool:
+        if nx and key in stored:
+            return False
+        stored[key] = value
+        return True
+
+    def fake_get(key: str) -> str | None:
+        return stored.get(key)
+
+    mock_limiter = MagicMock()
+    mock_limiter.allow.return_value = True
+    with patch(
+        "marketplace_pipeline.infrastructure.rate_limit.redis_sliding_window.RedisSlidingWindowRateLimiter",
+        return_value=mock_limiter,
+    ), patch("redis.from_url") as from_url:
+        client = MagicMock()
+        client.set.side_effect = fake_set
+        client.get.side_effect = fake_get
+        from_url.return_value = client
+        with TestClient(create_app()) as test_client:
+            headers = {"Idempotency-Key": "redis-idem-key"}
+            first = test_client.post(
+                "/api/v1/pipeline/jobs",
+                json={"collection_target": 7},
+                headers=headers,
+            )
+            second = test_client.post(
+                "/api/v1/pipeline/jobs",
+                json={"collection_target": 7},
+                headers=headers,
+            )
+            assert first.status_code == 202
+            assert second.status_code == 202
+            assert first.json()["id"] == second.json()["id"]

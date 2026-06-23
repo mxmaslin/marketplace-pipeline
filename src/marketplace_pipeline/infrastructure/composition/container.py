@@ -3,15 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from marketplace_pipeline.application.use_cases.run_pipeline import RunPipelineUseCase
+from marketplace_pipeline.domain.ports.enriched_product_repository import (
+    EnrichedProductRepositoryPort,
+)
 from marketplace_pipeline.infrastructure.adapters.crm.amocrm_gateway import AmoCrmGateway
 from marketplace_pipeline.infrastructure.adapters.llm.openai_classifier import (
     OpenAiSegmentClassifier,
 )
 from marketplace_pipeline.infrastructure.adapters.parsers.mock_collector import MockCatalogCollector
 from marketplace_pipeline.infrastructure.adapters.parsers.ozon_collector import OzonCatalogCollector
-from marketplace_pipeline.infrastructure.adapters.persistence import (
-    json_enriched_product_repository as product_repo,
-)
 from marketplace_pipeline.infrastructure.config.settings import Settings
 from marketplace_pipeline.infrastructure.http.http_client import HttpClient
 
@@ -54,8 +54,12 @@ class Container:
         )
         return AmoCrmGateway(self.settings, store, http_client=self.http_client)
 
-    def product_repository(self) -> product_repo.JsonEnrichedProductRepository:
-        return product_repo.JsonEnrichedProductRepository(self.output_dir)
+    def product_repository(self) -> EnrichedProductRepositoryPort:
+        from marketplace_pipeline.infrastructure.composition.factories import (
+            build_enriched_product_repository,
+        )
+
+        return build_enriched_product_repository(self.settings, self.output_dir)
 
     def run_pipeline_use_case(self, collection_target: int | None = None) -> RunPipelineUseCase:
         return RunPipelineUseCase(

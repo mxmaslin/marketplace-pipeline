@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from collections.abc import Awaitable, Callable
 
 from fastapi import Request, Response
@@ -7,18 +8,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp
 
+from marketplace_pipeline.interfaces.api.middleware.public_paths import is_public_path
+
 
 class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
     """Require X-API-Key or Bearer token when API_KEY is configured."""
-
-    _PUBLIC_PREFIXES = (
-        "/health",
-        "/ready",
-        "/metrics",
-        "/docs",
-        "/redoc",
-        "/openapi.json",
-    )
 
     def __init__(self, app: ASGIApp, *, api_key: str) -> None:
         super().__init__(app)
@@ -32,8 +26,7 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
         if not self._api_key:
             return await call_next(request)
 
-        path = request.url.path
-        if any(path == prefix or path.startswith(f"{prefix}/") for prefix in self._PUBLIC_PREFIXES):
+        if is_public_path(request.url.path):
             return await call_next(request)
 
         provided = request.headers.get("X-API-Key", "")
@@ -42,7 +35,7 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
             if auth.lower().startswith("bearer "):
                 provided = auth[7:].strip()
 
-        if provided != self._api_key:
+        if not provided or not secrets.compare_digest(provided, self._api_key):
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Invalid or missing API key"},

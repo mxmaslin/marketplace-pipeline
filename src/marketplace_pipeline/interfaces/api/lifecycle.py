@@ -9,16 +9,17 @@ from fastapi import FastAPI
 from marketplace_pipeline.infrastructure.composition.container import Container
 from marketplace_pipeline.infrastructure.composition.factories import (
     build_job_finished_callback,
+    build_job_idempotency_store,
     build_job_repository,
     build_job_runner,
 )
 from marketplace_pipeline.infrastructure.config.settings import get_settings
 from marketplace_pipeline.infrastructure.logging import configure_logging
+from marketplace_pipeline.infrastructure.observability.metrics import MetricsRegistry
 from marketplace_pipeline.infrastructure.observability.tracing import (
     setup_opentelemetry,
     setup_sentry,
 )
-from marketplace_pipeline.interfaces.api.metrics import MetricsRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.settings = settings
     app.state.job_repository = job_repo
     app.state.job_runner = job_runner
+    app.state.job_idempotency_store = build_job_idempotency_store(settings)
     app.state.metrics = metrics
     logger.info(
         "API started: job_store=%s runner=%s idempotency=%s auth=%s",

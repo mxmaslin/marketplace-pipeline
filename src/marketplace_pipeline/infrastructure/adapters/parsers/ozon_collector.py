@@ -76,7 +76,8 @@ class OzonCatalogCollector:
             headers=headers,
             params=params,
         )
-        return self._parse_products(response.json())
+        products = self._parse_products(response.json())
+        return products[: self._settings.ozon_page_size]
 
     def _page_url(self, page: int) -> str:
         base = self._settings.ozon_category_path.rstrip("/")

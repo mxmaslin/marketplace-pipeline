@@ -21,6 +21,9 @@
 | FastAPI job API (v0.3) | Async jobs, health, metrics |
 | Production hardening (v0.4) | API_KEY, rate limit, real /ready, structured logs, LLM soft-fail |
 | Scale stack (v0.5) | Celery + PostgreSQL + Redis + OTEL/Sentry |
+| Alembic + enriched snapshots | Postgres schema via migrations; `enriched_product_snapshots` table |
+| Job submit idempotency | `Idempotency-Key` header, memory/Redis store, configurable TTL |
+| Distributed rate limit | Redis sliding window when `REDIS_URL` set; public paths exempt |
 
 ## Промпты / задачи агенту
 
@@ -31,18 +34,20 @@
 5. «Prove to HR we're strong backend devs» — FastAPI, SQLite jobs, probes.
 6. «Дотянуть до prod уровня» — auth, observability, atomic writes, Docker hardening.
 7. «Multi-node scale» — Celery, Postgres, Redis, shared metrics.
-8. «Актуализируй доки и закоммить» — синхронизация v0.5.
+8. «Production hardening v0.5.1» — Alembic migrations, job `Idempotency-Key`, Redis rate limit, `MetricsRegistry` in infrastructure.
+9. «Актуализируй доки и закоммить» — синхронизация docs/tests.
 
 ## Сгенерировано ИИ
 
 - Clean Architecture: domain ports, use cases, adapters, factories
 - `HttpClient` (tenacity, 429, connection pool)
 - Ozon/Mock parsers, LLM batch classifier (soft-fail), AmoCRM + idempotency (file + Redis)
-- FastAPI: jobs API, auth, rate limit, health/ready/metrics, middleware
+- FastAPI: jobs API, auth (`compare_digest`), rate limit (memory/Redis), health/ready/metrics, OpenAPI security
 - Job runners: thread pool (single-node) + Celery (multi-node)
-- Job stores: SQLite + PostgreSQL
-- Observability: JSON logs, correlation_id, OTEL, Sentry (optional)
-- pytest (~95 tests, ~96% coverage), Docker, compose scale profile, CI
+- Job stores: SQLite + PostgreSQL; Alembic migrations
+- Job idempotency: `Idempotency-Key` on submit (memory/Redis)
+- Observability: `MetricsRegistry` (in-memory or Redis), JSON logs, correlation_id, OTEL, Sentry (optional)
+- pytest (~108 tests, ~95% coverage), Docker, compose scale profile, CI
 - Docs: AGENTS.md, SCALE.md, rules, skills
 
 ## Исправлено / уточнено вручную (кандидатом)
@@ -55,9 +60,9 @@
 ## API layer — кратко (v0.5)
 
 ```
-POST /api/v1/pipeline/jobs  → 202 (optional X-API-Key)
+POST /api/v1/pipeline/jobs  → 202 (optional X-API-Key, Idempotency-Key)
 GET  /api/v1/pipeline/jobs/{id}  → poll status
-GET  /health, /ready, /metrics
+GET  /health, /ready, /metrics  → public (no auth)
 ```
 
 Backends: `thread`+`sqlite` (default) или `celery`+`postgres`+`redis` (scale).
@@ -68,7 +73,7 @@ Backends: `thread`+`sqlite` (default) или `celery`+`postgres`+`redis` (scale)
 
 Краткий чеклист:
 
-- [ ] Coverage ≥95% (`pytest`, сейчас ~96%)
+- [ ] Coverage ≥95% (`pytest`, сейчас ~95%)
 - [ ] `make run` — CLI mock pipeline
 - [ ] `make api` → /docs — submit job, poll status
 - [ ] `docker compose up` — local; `docker compose --profile scale up` — distributed

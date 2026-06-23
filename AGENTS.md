@@ -21,7 +21,7 @@ Legacy shims at package root (`models.py`, `pipeline.py`) re-export for tests �
 pip install -e ".[dev]"           # local / CI
 pip install -e ".[dev,scale]"       # Postgres, Celery, Redis, OTEL, Sentry
 ruff check src tests
-pytest                            # coverage ≥95% (~95 tests, ~96%)
+pytest                            # coverage ≥95% (~108 tests, ~95%)
 make run                          # CLI mock pipeline smoke
 make api                          # FastAPI on :8000 (OpenAPI /docs)
 make scale-up                     # docker compose --profile scale
@@ -50,6 +50,10 @@ Infrastructure implements domain **ports**. Application orchestrates ports. Doma
 | New marketplace | Infrastructure | `infrastructure/adapters/parsers/` + port |
 | New CRM | Infrastructure | `infrastructure/adapters/crm/` |
 | Job store (SQLite / Postgres) | Infrastructure | `infrastructure/adapters/persistence/` |
+| Job submit idempotency | Domain port + Infrastructure | `domain/ports/job_idempotency_store.py`, memory/Redis stores |
+| Enriched output (Postgres) | Infrastructure | `postgres_enriched_product_repository.py` |
+| Prometheus metrics | Infrastructure | `infrastructure/observability/metrics.py` |
+| DB migrations (scale) | Alembic | `alembic/` — run `alembic upgrade head` before Postgres deploy |
 | Background execution | Infrastructure | `pipeline_job_runner.py` or `celery_job_runner.py` |
 | Shared job execution | Infrastructure | `infrastructure/services/pipeline_job_executor.py` |
 | Backend factories | Infrastructure | `infrastructure/composition/factories.py` |
@@ -66,6 +70,8 @@ Infrastructure implements domain **ports**. Application orchestrates ports. Doma
 | Job store | `JOB_STORE_BACKEND=sqlite` | `postgres` + `DATABASE_URL` |
 | Job runner | `JOB_RUNNER_BACKEND=thread` | `celery` + `REDIS_URL` |
 | CRM idempotency | `CRM_IDEMPOTENCY_BACKEND=file` | `redis` |
+| Job submit idempotency | in-memory (single API) | Redis via `Idempotency-Key` header |
+| API rate limit | in-memory per replica | Redis when `REDIS_URL` set |
 
 See [docs/SCALE.md](docs/SCALE.md).
 
@@ -77,7 +83,8 @@ See [docs/SCALE.md](docs/SCALE.md).
 - «Стандарт» classified but not sent to CRM
 - `MOCK_PARSER` env-only
 - API jobs: `collection_target` in request body overrides settings for that job only
-- Production API: optional `API_KEY`, rate limits, real `/ready` probes
+- Production API: optional `API_KEY` (`compare_digest`), rate limits (public paths exempt), real `/ready` probes
+- Job submit: optional `Idempotency-Key` header (`JOB_IDEMPOTENCY_TTL_SECONDS`)
 
 ## Do NOT
 

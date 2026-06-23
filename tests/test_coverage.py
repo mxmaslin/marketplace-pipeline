@@ -201,7 +201,7 @@ def test_http_client_context_manager_closes_pool(httpx_mock: HTTPXMock) -> None:
 
 
 def test_metrics_registry_counters() -> None:
-    from marketplace_pipeline.interfaces.api.metrics import MetricsRegistry
+    from marketplace_pipeline.infrastructure.observability.metrics import MetricsRegistry
 
     metrics = MetricsRegistry()
     metrics.inc_submitted()

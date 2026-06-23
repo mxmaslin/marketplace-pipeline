@@ -20,7 +20,7 @@ cp .env.example .env
 
 ```bash
 make lint    # or: ruff check src tests
-make test    # or: pytest (~95 tests, ≥95% coverage)
+make test    # or: pytest (~108 tests, ≥95% coverage)
 make run     # CLI mock pipeline smoke
 make api     # FastAPI on :8000 (optional)
 ```

@@ -3,7 +3,7 @@
 ## Quick start
 
 ```bash
-pytest                          # full suite + coverage (~95 tests, ~96%)
+pytest                          # full suite + coverage (~108 tests, ~95%)
 pytest tests/test_api.py -v     # FastAPI integration
 pytest tests/test_scale.py -v   # multi-node factories (mocked)
 pytest -k idempotency           # by name
@@ -31,13 +31,13 @@ tests/
   domain/
     test_domain_services.py   # pure domain unit tests
   test_parser.py              # factory, mock parser, ozon helpers
-  test_ozon_collect.py        # ozon pagination with httpx mock
+  test_ozon_collect.py        # ozon pagination, OZON_PAGE_SIZE, collection_target smoke
   test_llm.py                 # mock + openai batch + soft-fail
   test_crm.py                 # selectors, amocrm http
   test_idempotency.py         # store, duplicate tasks, pipeline rerun
   test_pipeline.py            # e2e, degradation, http 429
   test_main.py                # CLI entry
-  test_api.py                 # health, ready, auth, rate limit, jobs
+  test_api.py                 # health, ready, auth, rate limit (memory + Redis), jobs, Idempotency-Key
   test_job_repository.py      # SQLite job CRUD
   test_job_runner.py          # thread pool success/failure
   test_prod_hardening.py      # prerequisites, atomic IO, LLM soft-fail

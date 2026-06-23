@@ -18,7 +18,8 @@ alwaysApply: false
 
 | File | Scope |
 |------|-------|
-| `test_api.py` | health, ready, auth, rate limit, jobs, metrics |
+| `test_api.py` | health, ready, auth, rate limit (memory + Redis), jobs, Idempotency-Key, metrics |
+| `test_ozon_collect.py` | Ozon pagination, `OZON_PAGE_SIZE`, collection_target smoke |
 | `test_job_repository.py` | SQLite CRUD |
 | `test_job_runner.py` | thread pool success/failure |
 | `test_prod_hardening.py` | prerequisites, atomic IO, LLM soft-fail |

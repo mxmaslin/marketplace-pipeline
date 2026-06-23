@@ -23,7 +23,7 @@
 | `value_objects/` | `PriceSegment` |
 | `models/` | `CollectionResult`, `CrmTaskRequest`, `CrmTaskOutcome`, `PipelineJob` |
 | `services/` | `ProductSelectionService`, `CrmTaskFactory`, `idempotency_policy`, `pipeline_prerequisites` |
-| `ports/` | Collector, classifier, CRM, idempotency store, **job repository**, **job runner** |
+| `ports/` | Collector, classifier, CRM, idempotency store, **job repository**, **job runner**, **job idempotency store** |
 | `exceptions/` | `DomainError`, `CrmConfigurationError`, `PipelineConfigurationError` |
 
 **No imports** from application or infrastructure.
@@ -50,6 +50,9 @@ Depends on **domain only** (ports + services). Job submit delegates to `JobRunne
 | `JsonEnrichedProductRepository` | `EnrichedProductRepositoryPort` | `adapters/persistence/` |
 | `SqliteJobRepository` | `JobRepositoryPort` | `adapters/persistence/` |
 | `PostgresJobRepository` | `JobRepositoryPort` | `adapters/persistence/` |
+| `PostgresEnrichedProductRepository` | `EnrichedProductRepositoryPort` | `adapters/persistence/` |
+| `MemoryJobIdempotencyStore` | `JobIdempotencyStorePort` | `adapters/persistence/` |
+| `RedisJobIdempotencyStore` | `JobIdempotencyStorePort` | `adapters/persistence/` |
 
 | Service | Role |
 |---------|------|
@@ -69,14 +72,17 @@ Depends on **domain only** (ports + services). Job submit delegates to `JobRunne
 | `workers/tasks.py` | `pipeline.execute_job` task |
 
 - `config/settings.py` — env configuration (not domain)
+- `observability/metrics.py` — `MetricsRegistry` (in-memory or Redis Prometheus counters)
 - `observability/tracing.py` — optional OTEL + Sentry
+- `rate_limit/redis_sliding_window.py` — distributed API rate limit
+- `alembic/` (repo root) — PostgreSQL schema migrations
 
 ## Interfaces (`interfaces/`)
 
 | Entry | Role |
 |-------|------|
 | `cli/main.py` | Synchronous one-shot pipeline |
-| `api/app.py` | FastAPI: auth, rate limit, metrics, middleware |
+| `api/app.py` | FastAPI: auth, rate limit (memory/Redis), metrics, OpenAPI security |
 | `api/routes/jobs.py` | `POST/GET /api/v1/pipeline/jobs` (202 async) |
 | `api/routes/health.py` | `/health`, `/ready` (DB + data dir + Redis) |
 | `api/lifecycle.py` | Startup: factories, metrics, observability |

@@ -3,11 +3,19 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from marketplace_pipeline.domain.ports.enriched_product_repository import (
+    EnrichedProductRepositoryPort,
+)
 from marketplace_pipeline.domain.ports.idempotency_store import IdempotencyStorePort
+from marketplace_pipeline.domain.ports.job_idempotency_store import JobIdempotencyStorePort
 from marketplace_pipeline.domain.ports.job_repository import JobRepositoryPort
 from marketplace_pipeline.domain.ports.job_runner import JobRunnerPort
 from marketplace_pipeline.infrastructure.adapters.crm.file_idempotency_store import (
     FileIdempotencyStore,
+)
+from marketplace_pipeline.infrastructure.adapters.persistence import (
+    json_enriched_product_repository,
+    memory_job_idempotency_store,
 )
 from marketplace_pipeline.infrastructure.adapters.persistence.sqlite_job_repository import (
     SqliteJobRepository,
@@ -27,6 +35,36 @@ def build_job_repository(settings: Settings) -> JobRepositoryPort:
 
         return postgres_job_repository.PostgresJobRepository(settings.database_url)
     return SqliteJobRepository(Path(settings.job_db_path))
+
+
+def build_enriched_product_repository(
+    settings: Settings,
+    output_dir: Path,
+) -> EnrichedProductRepositoryPort:
+    if settings.job_store_backend == "postgres":
+        from marketplace_pipeline.infrastructure.adapters.persistence import (
+            postgres_enriched_product_repository,
+        )
+
+        return postgres_enriched_product_repository.PostgresEnrichedProductRepository(
+            settings.database_url
+        )
+    return json_enriched_product_repository.JsonEnrichedProductRepository(output_dir)
+
+
+def build_job_idempotency_store(settings: Settings) -> JobIdempotencyStorePort:
+    if settings.redis_url.strip():
+        from marketplace_pipeline.infrastructure.adapters.persistence import (
+            redis_job_idempotency_store,
+        )
+
+        return redis_job_idempotency_store.RedisJobIdempotencyStore(
+            settings.redis_url,
+            ttl_seconds=settings.job_idempotency_ttl_seconds,
+        )
+    return memory_job_idempotency_store.MemoryJobIdempotencyStore(
+        ttl_seconds=settings.job_idempotency_ttl_seconds,
+    )
 
 
 def build_idempotency_store(
@@ -73,7 +111,7 @@ def build_job_runner(
 def build_job_finished_callback(
     metrics: object,
 ) -> JobFinishedCallback:
-    from marketplace_pipeline.interfaces.api.metrics import MetricsRegistry
+    from marketplace_pipeline.infrastructure.observability.metrics import MetricsRegistry
 
     registry = metrics if isinstance(metrics, MetricsRegistry) else MetricsRegistry()
 

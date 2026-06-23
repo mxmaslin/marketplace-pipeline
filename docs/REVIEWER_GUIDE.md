@@ -62,7 +62,7 @@ make ci
 **Ожидаемый результат:**
 
 - `ruff` — без ошибок
-- `pytest` — **95 passed**, coverage **≥95%** (сейчас ~96%)
+- `pytest` — **108 passed**, coverage **≥95%** (сейчас ~95%)
 
 HTML-отчёт покрытия (опционально):
 
@@ -165,6 +165,7 @@ URL: **http://localhost:8000/docs**
 |------------|--------------|---------------|
 | Категория Ozon | `infrastructure/adapters/parsers/ozon_collector.py` | `OZON_CATEGORY_PATH` в `.env.example` |
 | Пагинация | `ozon_collector.py` → `collect()` | `tests/test_ozon_collect.py` |
+| `OZON_PAGE_SIZE` | `settings.ozon_page_size` | `test_ozon_collect_10k_target_smoke` |
 | Retry 429 | `infrastructure/http/http_client.py` | `tests/test_coverage.py::test_http_client_post_retries_429` |
 | Graceful degradation | `ozon_collector.py` → `degraded=True` | `tests/test_ozon_collect.py::test_ozon_collect_degraded` |
 | DEMO_MODE | `settings.py` → `collection_target` | `make run` собирает 100, не 10K |
@@ -279,11 +280,33 @@ make run    # второй раз — reused=2 в логах
 
 ### 6.4 Rate limit
 
+Публичные пути (`/health`, `/ready`, `/metrics`, `/docs`, OpenAPI) **не** лимитируются.  
+При `REDIS_URL` — распределённый лимитер (Redis); иначе in-memory per replica.
+
 ```bash
 # API_RATE_LIMIT_PER_MINUTE=1 в .env, перезапуск
-curl -s http://localhost:8000/health   # 200
-curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health  # 429
+curl -s http://localhost:8000/health                    # 200 (exempt)
+curl -s -o /dev/null -w "%{http_code}" \
+  http://localhost:8000/api/v1/pipeline/jobs              # 200
+curl -s -o /dev/null -w "%{http_code}" \
+  http://localhost:8000/api/v1/pipeline/jobs              # 429
 ```
+
+### 6.5 Job submit idempotency (`Idempotency-Key`)
+
+Повторный POST с тем же заголовком возвращает тот же job id (202), без второго запуска:
+
+```bash
+curl -s -D - -X POST http://localhost:8000/api/v1/pipeline/jobs \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: demo-key-1" \
+  -d '{"collection_target": 10}'
+# повторить — тот же id в теле
+```
+
+Store: in-memory (default) или Redis при `REDIS_URL`. TTL: `JOB_IDEMPOTENCY_TTL_SECONDS` (default 86400).
+
+Тесты: `pytest tests/test_api.py -k idempotency -v`
 
 ---
 
@@ -314,6 +337,8 @@ docker compose up api --build
 docker compose --profile scale up --build
 # или: make scale-up
 ```
+
+Перед первым запуском с Postgres (вне Docker): `alembic upgrade head` — см. [SCALE.md](SCALE.md).
 
 Поднимает: **postgres**, **redis**, **api-scale**, **worker**.
 
@@ -429,7 +454,7 @@ jq '.meta.collected_count, (.products | length)' data/enriched_products.json
 
 Если кандидат показывает устно — см. [docs/HR_DEMO.md](HR_DEMO.md). Кратко:
 
-1. `make ci` — «всё зелёное, 95+ тестов»
+1. `make ci` — «всё зелёное, 108+ тестов»
 2. `make api` → `/docs` — submit job
 3. Poll → `completed`, показать счётчики
 4. `/metrics`, `/ready`

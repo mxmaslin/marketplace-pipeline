@@ -52,7 +52,7 @@ curl -s http://localhost:8000/metrics
 - **Job API** — long-running work вне HTTP thread
 - **Scale** — Celery workers + PostgreSQL (`docs/SCALE.md`)
 - **Production** — API_KEY, rate limits, structured logs, OTEL/Sentry
-- **96%+ test coverage**, CI, Docker
+- **≥95% test coverage**, CI, Docker
 
 ## 6. Scale demo (опционально)
 

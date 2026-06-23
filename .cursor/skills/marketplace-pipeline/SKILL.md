@@ -26,10 +26,10 @@ RunPipelineUseCase
 ```
 POST /api/v1/pipeline/jobs
   → validate_pipeline_prerequisites
-  → SubmitPipelineJobUseCase
+  → SubmitPipelineJobUseCase (+ optional Idempotency-Key)
   → JobRunnerPort (thread pool | Celery)
   → pipeline_job_executor → RunPipelineUseCase
-  → JobRepositoryPort (SQLite | PostgreSQL)
+  → JobRepositoryPort (SQLite | PostgreSQL via Alembic)
 ```
 
 Composition: `infrastructure/composition/container.py` + `factories.py`  
@@ -40,7 +40,7 @@ API wiring: `interfaces/api/lifecycle.py`
 1. [AGENTS.md](../../AGENTS.md)
 2. Identify layer before editing
 3. `pip install -e ".[dev,scale]"` for full test suite
-4. `make test` (≥95% coverage)
+4. `make test` (≥95% coverage, ~108 tests)
 5. `make api` → http://localhost:8000/docs
 
 ## Key env vars
@@ -51,9 +51,11 @@ API wiring: `interfaces/api/lifecycle.py`
 | `JOB_STORE_BACKEND` | `sqlite` (default) or `postgres` |
 | `JOB_RUNNER_BACKEND` | `thread` (default) or `celery` |
 | `JOB_DB_PATH` / `DATABASE_URL` | Job persistence |
-| `API_KEY` | Protect `/api/v1/*` |
+| `API_KEY` | Protect `/api/v1/*` (`compare_digest`) |
+| `JOB_IDEMPOTENCY_TTL_SECONDS` | TTL for `Idempotency-Key` on job submit |
 | `CRM_IDEMPOTENCY_BACKEND` | `file` or `redis` |
 
+Scale: run `alembic upgrade head` before Postgres deploy.  
 Full list: [docs/ENV.md](../../docs/ENV.md) · Scale: [docs/SCALE.md](../../docs/SCALE.md)
 
 ## Add API feature

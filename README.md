@@ -22,8 +22,8 @@ curl -X POST http://localhost:8000/api/v1/pipeline/jobs \
   -d '{"collection_target": 50}'
 ```
 
-Async jobs (202), `/health`, `/ready`, `/metrics`, `X-Request-ID`.  
-Production: `API_KEY`, `LOG_JSON=true`.  
+Async jobs (202), optional `Idempotency-Key`, `/health`, `/ready`, `/metrics`, `X-Request-ID`.  
+Production: `API_KEY`, `LOG_JSON=true`; Redis-backed rate limit when `REDIS_URL` set.  
 Подробная инструкция для ревьювера: [docs/REVIEWER_GUIDE.md](docs/REVIEWER_GUIDE.md).
 
 ### Multi-node (scale)
@@ -64,7 +64,9 @@ marketplace-pipeline
 | `JOB_STORE_BACKEND` | `sqlite` или `postgres` |
 | `JOB_RUNNER_BACKEND` | `thread` или `celery` |
 | `API_KEY` | Защита `/api/v1/*` (пусто = без auth) |
-| `REDIS_URL` | Celery broker, Redis idempotency, shared metrics |
+| `JOB_IDEMPOTENCY_TTL_SECONDS` | TTL для `Idempotency-Key` на submit job |
+| `OZON_PAGE_SIZE` | Размер страницы Ozon (default 36) |
+| `REDIS_URL` | Celery broker, Redis idempotency, shared metrics, distributed rate limit |
 
 ## Архитектура
 
@@ -100,7 +102,7 @@ Scale: marketplace-pipeline-worker (Celery) → shared executor → Postgres job
 ## Тесты
 
 ```bash
-make test          # pytest, ≥95% coverage (~95 tests)
+make test          # pytest, ≥95% coverage (~108 tests)
 make ci            # ruff + pytest
 ```
 

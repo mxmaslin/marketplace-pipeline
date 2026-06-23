@@ -9,24 +9,6 @@ from marketplace_pipeline.domain.models.pipeline_job import JobStatus, PipelineJ
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS pipeline_jobs (
-    id TEXT PRIMARY KEY,
-    status TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL,
-    started_at TIMESTAMPTZ,
-    finished_at TIMESTAMPTZ,
-    collection_target INTEGER NOT NULL,
-    collected_count INTEGER,
-    classified_count INTEGER,
-    crm_tasks_count INTEGER,
-    output_path TEXT,
-    error_message TEXT,
-    correlation_id TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_pipeline_jobs_created_at ON pipeline_jobs(created_at DESC);
-"""
-
 
 class PostgresJobRepository:
     """Persistent job store for distributed async pipeline execution."""
@@ -36,15 +18,9 @@ class PostgresJobRepository:
 
         self._database_url = database_url
         self._psycopg = psycopg
-        self._init_schema()
 
     def _connect(self):
         return self._psycopg.connect(self._database_url, row_factory=dict_row)
-
-    def _init_schema(self) -> None:
-        with self._connect() as conn:
-            conn.execute(_SCHEMA)
-            conn.commit()
 
     def ping(self) -> bool:
         try:

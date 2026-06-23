@@ -15,14 +15,16 @@ from marketplace_pipeline.domain.services.pipeline_prerequisites import (
     validate_pipeline_prerequisites,
 )
 from marketplace_pipeline.infrastructure.composition.factories import (
+    build_enriched_product_repository,
     build_idempotency_store,
+    build_job_idempotency_store,
     build_job_repository,
     build_job_runner,
     ping_redis,
 )
 from marketplace_pipeline.infrastructure.config.settings import Settings as LayeredSettings
 from marketplace_pipeline.infrastructure.logging.setup import configure_logging
-from marketplace_pipeline.interfaces.api.metrics import MetricsRegistry
+from marketplace_pipeline.infrastructure.observability.metrics import MetricsRegistry
 
 
 def test_settings_validate_postgres_requires_database_url() -> None:
@@ -162,18 +164,17 @@ def test_postgres_job_repository_operations() -> None:
         mock_conn.execute.return_value.fetchone.return_value
     ]
 
-    with patch.object(PostgresJobRepository, "_init_schema"):
-        with patch.object(PostgresJobRepository, "_connect") as connect:
-            connect.return_value.__enter__.return_value = mock_conn
-            connect.return_value.__exit__.return_value = False
-            repo = PostgresJobRepository("postgresql://localhost/test")
-            assert repo.ping() is True
-            repo.create(job)
-            loaded = repo.get(job.id)
-            assert loaded is not None
-            job.status = JobStatus.COMPLETED
-            repo.update(job)
-            assert repo.list_recent(limit=1)
+    with patch.object(PostgresJobRepository, "_connect") as connect:
+        connect.return_value.__enter__.return_value = mock_conn
+        connect.return_value.__exit__.return_value = False
+        repo = PostgresJobRepository("postgresql://localhost/test")
+        assert repo.ping() is True
+        repo.create(job)
+        loaded = repo.get(job.id)
+        assert loaded is not None
+        job.status = JobStatus.COMPLETED
+        repo.update(job)
+        assert repo.list_recent(limit=1)
 
 
 def test_celery_task_invokes_executor() -> None:
@@ -252,3 +253,91 @@ def test_setup_opentelemetry() -> None:
 
 def test_configure_logging_json() -> None:
     configure_logging("INFO", json_logs=True)
+
+
+def test_build_job_idempotency_store_memory() -> None:
+    settings = Settings(JOB_IDEMPOTENCY_TTL_SECONDS=60)
+    store = build_job_idempotency_store(settings)
+    assert store.reserve("key-1", "job-1") is True
+    assert store.get("key-1") == "job-1"
+    assert store.reserve("key-1", "job-2") is False
+
+
+def test_build_job_idempotency_store_redis_mock() -> None:
+    settings = Settings(
+        REDIS_URL="redis://localhost:6379/0",
+        JOB_IDEMPOTENCY_TTL_SECONDS=120,
+    )
+    with patch("redis.from_url") as from_url:
+        client = MagicMock()
+        client.set.return_value = True
+        client.get.return_value = "job-abc"
+        from_url.return_value = client
+        store = build_job_idempotency_store(settings)
+        assert store.reserve("dup-key", "job-abc") is True
+        client.set.assert_called_once()
+        assert store.get("dup-key") == "job-abc"
+
+
+def test_build_enriched_product_repository_json(tmp_path: Path) -> None:
+    from marketplace_pipeline.infrastructure.adapters.persistence import (
+        json_enriched_product_repository,
+    )
+
+    settings = Settings(JOB_DB_PATH=str(tmp_path / "jobs.sqlite"))
+    repo = build_enriched_product_repository(settings, tmp_path)
+    assert isinstance(repo, json_enriched_product_repository.JsonEnrichedProductRepository)
+
+
+def test_build_enriched_product_repository_postgres_mock() -> None:
+    settings = Settings(
+        JOB_STORE_BACKEND="postgres",
+        DATABASE_URL="postgresql://user:pass@localhost/db",
+    )
+    with patch(
+        "marketplace_pipeline.infrastructure.adapters.persistence.postgres_enriched_product_repository.PostgresEnrichedProductRepository"
+    ) as repo_cls:
+        instance = MagicMock()
+        repo_cls.return_value = instance
+        repo = build_enriched_product_repository(settings, Path("data"))
+        assert repo is instance
+
+
+def test_postgres_enriched_product_repository_save() -> None:
+    from datetime import UTC, datetime
+
+    from marketplace_pipeline.domain.entities.enriched_product import EnrichedProduct
+    from marketplace_pipeline.domain.entities.product import Product
+    from marketplace_pipeline.domain.models.collection_result import CollectionResult
+    from marketplace_pipeline.domain.value_objects.price_segment import PriceSegment
+    from marketplace_pipeline.infrastructure.adapters.persistence import (
+        postgres_enriched_product_repository,
+    )
+
+    product = Product(
+        id="1",
+        name="Phone",
+        price=1000.0,
+        url="https://example.com/p/1",
+        category="phones",
+        collected_at=datetime.now(tz=UTC),
+    )
+    enriched = EnrichedProduct(**product.model_dump(), segment=PriceSegment.STANDARD)
+    collection = CollectionResult(
+        products=[product],
+        target_count=1,
+        collected_count=1,
+        exhausted=False,
+    )
+    mock_conn = MagicMock()
+    mock_conn.execute.return_value.fetchone.return_value = (42,)
+
+    repo_cls = postgres_enriched_product_repository.PostgresEnrichedProductRepository
+    with patch.object(repo_cls, "_connect") as connect:
+        connect.return_value.__enter__.return_value = mock_conn
+        connect.return_value.__exit__.return_value = False
+        repo = repo_cls("postgresql://localhost/test")
+        path = repo.save([enriched], collection)
+        assert path.name == "42"
+        assert "enriched_product_snapshots" in str(path)
+        mock_conn.commit.assert_called_once()
