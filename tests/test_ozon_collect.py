@@ -108,6 +108,7 @@ def test_ozon_collect_10k_target_smoke(httpx_mock: HTTPXMock) -> None:
     target = 10_000
     settings = Settings(
         MOCK_PARSER=False,
+        DEMO_MODE=False,
         TARGET_PRODUCT_COUNT=target,
         OZON_PAGE_SIZE=page_size,
         OZON_CATEGORY_PATH="/category/test/",
