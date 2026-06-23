@@ -1,7 +1,10 @@
-.PHONY: install lint test run api docker clean coverage ci
+.PHONY: install install-scale lint test run api docker scale-up clean coverage ci
 
 install:
 	pip install -e ".[dev]"
+
+install-scale:
+	pip install -e ".[dev,scale]"
 
 lint:
 	ruff check src tests
@@ -20,6 +23,9 @@ api:
 
 docker:
 	docker compose up --build
+
+scale-up:
+	docker compose --profile scale up --build
 
 clean:
 	rm -rf .pytest_cache .ruff_cache htmlcov .coverage

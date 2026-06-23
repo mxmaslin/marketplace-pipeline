@@ -7,7 +7,7 @@ git clone <repo>
 cd cryprobez
 python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev,scale]"
 cp .env.example .env
 ```
 
@@ -20,7 +20,7 @@ cp .env.example .env
 
 ```bash
 make lint    # or: ruff check src tests
-make test    # or: pytest (~65 tests, ≥95% coverage)
+make test    # or: pytest (~95 tests, ≥95% coverage)
 make run     # CLI mock pipeline smoke
 make api     # FastAPI on :8000 (optional)
 ```

@@ -43,8 +43,18 @@ class SqliteJobRepository:
 
     def _init_schema(self) -> None:
         with self._connect() as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
             conn.executescript(_SCHEMA)
             conn.commit()
+
+    def ping(self) -> bool:
+        try:
+            with self._connect() as conn:
+                conn.execute("SELECT 1").fetchone()
+            return True
+        except sqlite3.Error as exc:
+            logger.warning("Job DB ping failed: %s", exc)
+            return False
 
     def create(self, job: PipelineJob) -> PipelineJob:
         with self._connect() as conn:

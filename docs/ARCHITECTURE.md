@@ -18,10 +18,13 @@
          data/enriched_products.json
 ```
 
-### API layer (v0.3 — production-style demo)
+### API layer (v0.4 — production hardening)
 
 ```
 Client ──POST /api/v1/pipeline/jobs──▶ FastAPI (202)
+              │  (API_KEY + rate limit)        │
+              │                              ▼
+              │                    validate_pipeline_prerequisites
               │                              │
               │                              ▼
               │                    SubmitPipelineJobUseCase
@@ -33,10 +36,10 @@ Client ──POST /api/v1/pipeline/jobs──▶ FastAPI (202)
               └────GET /jobs/{id}──── RunPipelineUseCase → adapters
                                               │
                                               ▼
-                                    SQLite (data/jobs.sqlite)
+                                    SQLite WAL (data/jobs.sqlite)
 ```
 
-Long-running work never blocks the HTTP thread. Job status persisted in SQLite; poll until `completed` or `failed`.
+Long-running work never blocks the HTTP thread. Job status persisted in SQLite; poll until `completed` or `failed`. Production: set `API_KEY`, `LOG_JSON=true`; `/ready` checks DB + data dir.
 
 ## Data model
 
@@ -146,7 +149,7 @@ Single `Settings` class (`pydantic-settings`):
 | Ozon 429 | Retry with backoff |
 | Ozon persistent error | Graceful degradation |
 | Category exhausted | `exhausted=True`, partial OK |
-| LLM bad JSON | Raise in batch (pipeline fails) — consider soft-fail in prod |
+| LLM bad JSON | Soft-fail batch → fallback «Стандарт» (pipeline continues) |
 | AmoCRM duplicate run | Idempotency store prevents duplicate POST |
 | Missing AmoCRM creds | `CrmConfigurationError` when `MOCK_CRM=false` |
 | Pipeline job failure | Job status `failed`, `error_message` set; HTTP 202 already returned |

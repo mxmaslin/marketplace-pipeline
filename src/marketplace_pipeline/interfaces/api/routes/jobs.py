@@ -7,7 +7,12 @@ from marketplace_pipeline.application.use_cases.pipeline_jobs import (
     ListPipelineJobsUseCase,
     SubmitPipelineJobUseCase,
 )
+from marketplace_pipeline.domain.exceptions import PipelineConfigurationError
 from marketplace_pipeline.domain.models.pipeline_job import PipelineJob
+from marketplace_pipeline.domain.services.pipeline_prerequisites import (
+    PipelinePrerequisites,
+    validate_pipeline_prerequisites,
+)
 from marketplace_pipeline.interfaces.api.schemas.jobs import (
     JobCreateRequest,
     JobListResponse,
@@ -29,10 +34,22 @@ def _to_response(job: PipelineJob) -> JobResponse:
     description="Accepts pipeline run asynchronously. Poll GET /{job_id} for status.",
 )
 async def create_job(body: JobCreateRequest, request: Request) -> JobResponse:
-    request.app.state.metrics.inc_http()
     settings = request.app.state.settings
     target = body.collection_target or settings.collection_target
     correlation_id = getattr(request.state, "request_id", None)
+
+    try:
+        validate_pipeline_prerequisites(
+            PipelinePrerequisites(
+                mock_llm=settings.mock_llm,
+                mock_crm=settings.mock_crm,
+                openai_api_key=settings.openai_api_key,
+                amocrm_subdomain=settings.amocrm_subdomain,
+                amocrm_access_token=settings.amocrm_access_token,
+            )
+        )
+    except PipelineConfigurationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     job = PipelineJob(collection_target=target, correlation_id=correlation_id)
     SubmitPipelineJobUseCase(
@@ -49,7 +66,6 @@ async def create_job(body: JobCreateRequest, request: Request) -> JobResponse:
     summary="Get job status",
 )
 async def get_job(job_id: str, request: Request) -> JobResponse:
-    request.app.state.metrics.inc_http()
     job = GetPipelineJobUseCase(request.app.state.job_repository).execute(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -62,7 +78,6 @@ async def get_job(job_id: str, request: Request) -> JobResponse:
     summary="List recent jobs",
 )
 async def list_jobs(request: Request, limit: int = 20) -> JobListResponse:
-    request.app.state.metrics.inc_http()
     jobs = ListPipelineJobsUseCase(request.app.state.job_repository).execute(limit=limit)
     items = [_to_response(job) for job in jobs]
     return JobListResponse(items=items, count=len(items))

@@ -56,8 +56,29 @@ All settings loaded via `pydantic-settings` from env and optional `.env` file.
 |----------|---------|-------------|
 | `JOB_DB_PATH` | data/jobs.sqlite | SQLite file for async job state |
 | `API_JOB_WORKERS` | 2 | Thread pool size for background pipeline runs |
+| `API_KEY` | (empty) | When set, protects `/api/v1/*` (header `X-API-Key` or Bearer) |
+| `API_RATE_LIMIT_PER_MINUTE` | 60 | Per-IP sliding window; `0` disables |
+| `LOG_JSON` | false | Emit structured JSON logs to stdout |
 
 Used by `marketplace-pipeline-api` / `make api`. CLI-only runs ignore these unless API is started.
+
+## Distributed scale (`pip install -e ".[scale]"`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `JOB_STORE_BACKEND` | sqlite | `sqlite` or `postgres` |
+| `DATABASE_URL` | (empty) | Required when `JOB_STORE_BACKEND=postgres` |
+| `JOB_RUNNER_BACKEND` | thread | `thread` (single-node) or `celery` |
+| `REDIS_URL` | redis://localhost:6379/0 | Broker, shared metrics, Redis idempotency |
+| `CELERY_BROKER_URL` | (empty) | Defaults to `REDIS_URL` |
+| `CRM_IDEMPOTENCY_BACKEND` | file | `file` or `redis` |
+| `OTEL_ENABLED` | false | OpenTelemetry traces |
+| `OTEL_SERVICE_NAME` | marketplace-pipeline | Service name in traces |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | http://localhost:4318/v1/traces | OTLP HTTP endpoint |
+| `SENTRY_DSN` | (empty) | Sentry error tracking |
+| `SENTRY_ENVIRONMENT` | production | Sentry environment tag |
+
+Full guide: [docs/SCALE.md](SCALE.md).
 
 ## Recommended profiles
 
@@ -107,4 +128,7 @@ MOCK_CRM=false
 CRM_IDEMPOTENCY_ENABLED=true
 JOB_DB_PATH=/var/lib/marketplace-pipeline/jobs.sqlite
 API_JOB_WORKERS=4
+API_KEY=your-secret-key
+API_RATE_LIMIT_PER_MINUTE=120
+LOG_JSON=true
 ```

@@ -6,6 +6,7 @@ services:
     volumes:
       - ./data:/app/data
     command: ["marketplace-pipeline"]
+    restart: unless-stopped
 
   api:
     build: .
@@ -16,3 +17,78 @@ services:
     volumes:
       - ./data:/app/data
     command: ["marketplace-pipeline-api"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # --- scale profile: docker compose --profile scale up --build ---
+  postgres:
+    profiles: ["scale"]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pipeline
+      POSTGRES_PASSWORD: pipeline
+      POSTGRES_DB: pipeline
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pipeline -d pipeline"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    profiles: ["scale"]
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api-scale:
+    profiles: ["scale"]
+    build: .
+    env_file:
+      - .env.scale.example
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    command: ["marketplace-pipeline-api"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  worker:
+    profiles: ["scale"]
+    build: .
+    env_file:
+      - .env.scale.example
+    command: ["marketplace-pipeline-worker"]
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

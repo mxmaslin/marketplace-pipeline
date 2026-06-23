@@ -4,13 +4,13 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  interfaces/          CLI + FastAPI (jobs, health, metrics)  │
+│  interfaces/     CLI + FastAPI + Celery worker               │
 ├─────────────────────────────────────────────────────────────┤
-│  application/         Use cases (pipeline + job management)  │
+│  application/    Use cases (pipeline + job management)         │
 ├─────────────────────────────────────────────────────────────┤
-│  domain/              Entities, VOs, domain services, ports  │
+│  domain/         Entities, VOs, domain services, ports       │
 ├─────────────────────────────────────────────────────────────┤
-│  infrastructure/      Adapters, config, HTTP, composition   │
+│  infrastructure/ Adapters, factories, HTTP, composition      │
 └─────────────────────────────────────────────────────────────┘
          Dependencies point INWARD only ↑
 ```
@@ -22,9 +22,9 @@
 | `entities/` | `Product`, `EnrichedProduct` |
 | `value_objects/` | `PriceSegment` |
 | `models/` | `CollectionResult`, `CrmTaskRequest`, `CrmTaskOutcome`, `PipelineJob` |
-| `services/` | `ProductSelectionService`, `CrmTaskFactory`, `idempotency_policy` |
-| `ports/` | Protocol interfaces (collector, classifier, CRM, repository, store, **job repository**) |
-| `exceptions/` | `DomainError`, `CrmConfigurationError` |
+| `services/` | `ProductSelectionService`, `CrmTaskFactory`, `idempotency_policy`, `pipeline_prerequisites` |
+| `ports/` | Collector, classifier, CRM, idempotency store, **job repository**, **job runner** |
+| `exceptions/` | `DomainError`, `CrmConfigurationError`, `PipelineConfigurationError` |
 
 **No imports** from application or infrastructure.
 
@@ -35,7 +35,7 @@
 | `run_pipeline.py` | Orchestrates catalog → LLM → CRM → JSON output |
 | `pipeline_jobs.py` | Submit / get / list async pipeline jobs (API layer) |
 
-Depends on **domain only** (ports + services). Job submit delegates execution to infrastructure runner via port injection at the interface boundary.
+Depends on **domain only** (ports + services). Job submit delegates to `JobRunnerPort` wired at the interface boundary.
 
 ## Infrastructure (`infrastructure/`)
 
@@ -46,26 +46,41 @@ Depends on **domain only** (ports + services). Job submit delegates execution to
 | `OpenAiSegmentClassifier` | `SegmentClassifierPort` | `adapters/llm/` |
 | `AmoCrmGateway` | `CrmGatewayPort` | `adapters/crm/` |
 | `FileIdempotencyStore` | `IdempotencyStorePort` | `adapters/crm/` |
+| `RedisIdempotencyStore` | `IdempotencyStorePort` | `adapters/crm/` |
 | `JsonEnrichedProductRepository` | `EnrichedProductRepositoryPort` | `adapters/persistence/` |
 | `SqliteJobRepository` | `JobRepositoryPort` | `adapters/persistence/` |
+| `PostgresJobRepository` | `JobRepositoryPort` | `adapters/persistence/` |
 
 | Service | Role |
 |---------|------|
-| `PipelineJobRunner` | Thread-pool execution of `RunPipelineUseCase` per job |
-| `HttpClient` | Shared httpx connection pool, retries, 429 handling |
+| `pipeline_job_executor` | Shared execute logic (thread pool + Celery) |
+| `PipelineJobRunner` | Single-node thread pool |
+| `CeleryJobRunner` | Multi-node enqueue to Celery |
+| `HttpClient` | Shared httpx pool, retries, 429 handling |
 
-- `composition/container.py` — **composition root** (DI wiring)
+| Composition | Role |
+|-------------|------|
+| `container.py` | DI wiring for pipeline adapters |
+| `factories.py` | Select job store / runner / idempotency by settings |
+
+| Workers | Role |
+|---------|------|
+| `workers/celery_app.py` | Celery application |
+| `workers/tasks.py` | `pipeline.execute_job` task |
+
 - `config/settings.py` — env configuration (not domain)
+- `observability/tracing.py` — optional OTEL + Sentry
 
 ## Interfaces (`interfaces/`)
 
 | Entry | Role |
 |-------|------|
-| `cli/main.py` | Synchronous one-shot pipeline (assignment deliverable) |
-| `api/app.py` | FastAPI factory: middleware, routers, metrics |
-| `api/routes/jobs.py` | `POST/GET /api/v1/pipeline/jobs` (202 async pattern) |
-| `api/routes/health.py` | `/health`, `/ready` |
-| `api/lifecycle.py` | Startup: SQLite repo + job runner; shutdown: drain pool |
+| `cli/main.py` | Synchronous one-shot pipeline |
+| `api/app.py` | FastAPI: auth, rate limit, metrics, middleware |
+| `api/routes/jobs.py` | `POST/GET /api/v1/pipeline/jobs` (202 async) |
+| `api/routes/health.py` | `/health`, `/ready` (DB + data dir + Redis) |
+| `api/lifecycle.py` | Startup: factories, metrics, observability |
+| `worker/main.py` | `marketplace-pipeline-worker` (Celery) |
 
 ## Legacy shims (root package)
 
@@ -77,11 +92,11 @@ Files like `models.py`, `pipeline.py`, `parser/ozon.py` re-export new types for 
 |-------------|----------------|
 | Entity | `Product`, `EnrichedProduct`, `PipelineJob` |
 | Value Object | `PriceSegment`, `JobStatus` |
-| Domain Service | `ProductSelectionService`, `CrmTaskFactory` |
+| Domain Service | `ProductSelectionService`, `CrmTaskFactory`, `pipeline_prerequisites` |
 | Repository (port) | `EnrichedProductRepositoryPort`, `JobRepositoryPort` |
 | Anti-corruption layer | Ozon/OpenAI/AmoCRM adapters |
 | Application Service | `RunPipelineUseCase`, `SubmitPipelineJobUseCase` |
-| Factory | `Container`, `CrmTaskFactory` |
+| Factory | `Container`, `factories`, `CrmTaskFactory` |
 
 ## Adding a feature (example: Bitrix24)
 
@@ -97,8 +112,9 @@ Files like `models.py`, `pipeline.py`, `parser/ozon.py` re-export new types for 
 | Domain services | Pure unit tests, no mocks |
 | Use cases | Mock ports (Protocol fakes) |
 | Adapters | `pytest-httpx` integration tests |
-| Job repository | `tmp_path` SQLite file |
+| Job repository | `tmp_path` SQLite; Postgres mocked in `test_scale.py` |
 | API | `TestClient` + lifespan context manager |
+| Scale stack | `test_scale.py`, `test_prod_hardening.py` |
 | Container | Smoke / e2e via `Pipeline` facade |
 
 See [TESTING.md](TESTING.md).

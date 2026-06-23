@@ -208,11 +208,15 @@ def test_metrics_registry_counters() -> None:
     metrics.inc_completed()
     metrics.inc_failed()
     metrics.inc_http()
+    metrics.observe_http_duration_ms(12.5)
+    metrics.observe_job_duration_seconds(3.2)
     text = metrics.render_prometheus()
     assert "pipeline_jobs_submitted_total 1" in text
     assert "pipeline_jobs_completed_total 1" in text
     assert "pipeline_jobs_failed_total 1" in text
     assert "http_requests_total 1" in text
+    assert "http_request_duration_ms_avg 12.5000" in text
+    assert "pipeline_job_duration_seconds_avg 3.2000" in text
 
 
 def test_ozon_collect_degraded(httpx_mock: HTTPXMock) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -27,13 +28,20 @@ def runner(tmp_path: Path) -> PipelineJobRunner:
     return PipelineJobRunner(settings, repo, output_dir=tmp_path, max_workers=1)
 
 
+def _wait_for_job(runner: PipelineJobRunner, job: PipelineJob) -> PipelineJob:
+    for _ in range(100):
+        loaded = runner._job_repository.get(job.id)
+        if loaded is not None and loaded.status in (JobStatus.COMPLETED, JobStatus.FAILED):
+            return loaded
+        time.sleep(0.05)
+    pytest.fail("job did not finish in time")
+
+
 def test_job_runner_completes_successfully(runner: PipelineJobRunner) -> None:
     job = PipelineJob(collection_target=5)
-    future = runner.submit(job)
-    future.result(timeout=10)
+    runner.submit(job)
+    loaded = _wait_for_job(runner, job)
 
-    loaded = runner._job_repository.get(job.id)
-    assert loaded is not None
     assert loaded.status == JobStatus.COMPLETED
     assert loaded.collected_count == 5
     assert loaded.finished_at is not None
@@ -51,7 +59,7 @@ def test_job_runner_marks_failed_on_pipeline_error(
     with patch.object(runner, "_job_repository") as repo_mock:
         repo_mock.get.return_value = job
         with patch(
-            "marketplace_pipeline.infrastructure.services.pipeline_job_runner.Container"
+            "marketplace_pipeline.infrastructure.services.pipeline_job_executor.Container"
         ) as container_cls:
             container_cls.return_value.run_pipeline_use_case.return_value = mock_use_case
             container_cls.return_value.http_client.close = MagicMock()

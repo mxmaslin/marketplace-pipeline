@@ -3,10 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from marketplace_pipeline.application.use_cases.run_pipeline import RunPipelineUseCase
-from marketplace_pipeline.infrastructure.adapters.crm.amocrm_gateway import (
-    AmoCrmGateway,
-    build_idempotency_store,
-)
+from marketplace_pipeline.infrastructure.adapters.crm.amocrm_gateway import AmoCrmGateway
 from marketplace_pipeline.infrastructure.adapters.llm.openai_classifier import (
     OpenAiSegmentClassifier,
 )
@@ -46,9 +43,14 @@ class Container:
         return OpenAiSegmentClassifier(self.settings, http_client=self.http_client)
 
     def crm_gateway(self) -> AmoCrmGateway:
+        from marketplace_pipeline.infrastructure.composition.factories import (
+            build_idempotency_store,
+        )
+
         store = build_idempotency_store(
             self.settings,
-            self.output_dir / "crm_idempotency.json",
+            self.output_dir,
+            store_path=self.output_dir / "crm_idempotency.json",
         )
         return AmoCrmGateway(self.settings, store, http_client=self.http_client)
 

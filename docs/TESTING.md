@@ -3,15 +3,17 @@
 ## Quick start
 
 ```bash
-pytest                          # full suite + coverage (~65 tests, ~98%)
+pytest                          # full suite + coverage (~95 tests, ~96%)
 pytest tests/test_api.py -v     # FastAPI integration
-pytest tests/test_crm.py -v     # CRM module
+pytest tests/test_scale.py -v   # multi-node factories (mocked)
 pytest -k idempotency           # by name
 pytest --cov=marketplace_pipeline --cov-report=html  # HTML report → htmlcov/
 make ci                           # ruff + pytest
 ```
 
 Coverage threshold: **95%** (enforced in `pyproject.toml`).
+
+Install for scale tests: `pip install -e ".[dev,scale]"` (CI uses this).
 
 ## Principles
 
@@ -20,6 +22,7 @@ Coverage threshold: **95%** (enforced in `pyproject.toml`).
 3. **Temp dirs** — `tmp_path` for idempotency store, pipeline output, `JOB_DB_PATH`
 4. **Deterministic** — `MockParser` for reproducible product sets
 5. **API tests** — always use `with TestClient(create_app()) as client:` so lifespan runs
+6. **Scale backends** — mock Postgres/Redis/Celery; no real services in unit tests
 
 ## Test layout
 
@@ -29,15 +32,17 @@ tests/
     test_domain_services.py   # pure domain unit tests
   test_parser.py              # factory, mock parser, ozon helpers
   test_ozon_collect.py        # ozon pagination with httpx mock
-  test_llm.py                 # mock + openai batch
+  test_llm.py                 # mock + openai batch + soft-fail
   test_crm.py                 # selectors, amocrm http
   test_idempotency.py         # store, duplicate tasks, pipeline rerun
   test_pipeline.py            # e2e, degradation, http 429
   test_main.py                # CLI entry
-  test_api.py                 # FastAPI health, jobs, metrics
+  test_api.py                 # health, ready, auth, rate limit, jobs
   test_job_repository.py      # SQLite job CRUD
-  test_job_runner.py          # background runner success/failure
-  test_coverage.py            # edge cases for missing branches
+  test_job_runner.py          # thread pool success/failure
+  test_prod_hardening.py      # prerequisites, atomic IO, LLM soft-fail
+  test_scale.py               # Postgres/Redis/Celery factories, OTEL/Sentry
+  test_coverage.py            # edge branches
 ```
 
 ## Common patterns
@@ -51,6 +56,7 @@ def api_client(tmp_path, monkeypatch):
     monkeypatch.setenv("MOCK_LLM", "true")
     monkeypatch.setenv("MOCK_CRM", "true")
     monkeypatch.setenv("JOB_DB_PATH", str(tmp_path / "jobs.sqlite"))
+    monkeypatch.delenv("API_KEY", raising=False)
     with TestClient(create_app()) as client:
         yield client
 ```
@@ -71,35 +77,24 @@ second = client.create_task(payload)
 assert second.reused is True
 ```
 
-### Pipeline smoke
-
-```python
-Pipeline(Settings(MOCK_PARSER=True, MOCK_LLM=True, MOCK_CRM=True, DEMO_MODE=True),
-         output_dir=tmp_path).run()
-```
-
 ### Job runner isolation
 
-Patch `Container.run_pipeline_use_case` to control pipeline outcome without HTTP.
+Patch `pipeline_job_executor.Container` to control pipeline outcome without HTTP.
 
 ## CI
 
 See [`.github/workflows/ci.yml`](../.github/workflows/ci.yml):
 
 ```
-ruff → pytest (mocks on) → docker build
+ruff → pytest (mocks on, .[scale] installed) → docker build
 ```
 
 Env in CI: `MOCK_*=true`, `DEMO_MODE=true`, `DEMO_PRODUCT_COUNT=50`.
 
 ## Raising coverage
 
-When adding code, check:
-
 ```bash
 pytest --cov=marketplace_pipeline --cov-report=term-missing
 ```
 
-Target uncovered lines in the report. Prefer focused tests over broad integration tests.
-
-Common gaps: `HttpClient.__enter__/__exit__`, job runner failure path, metrics counter increments.
+Prefer focused tests in `test_coverage.py` / `test_scale.py` over duplicate e2e.

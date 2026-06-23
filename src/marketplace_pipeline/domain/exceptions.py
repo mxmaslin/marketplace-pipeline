@@ -8,3 +8,7 @@ class InvalidSegmentError(DomainError):
 
 class CrmConfigurationError(DomainError):
     pass
+
+
+class PipelineConfigurationError(DomainError):
+    pass

@@ -19,6 +19,15 @@ curl -s -X POST http://localhost:8000/api/v1/pipeline/jobs \
 
 Обратите внимание: **`X-Request-ID`** в заголовках — correlation id.
 
+С `API_KEY` в prod:
+
+```bash
+curl -s -X POST http://localhost:8000/api/v1/pipeline/jobs \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"collection_target": 50}'
+```
+
 ## 3. Poll status
 
 ```bash
@@ -31,26 +40,35 @@ curl -s http://localhost:8000/api/v1/pipeline/jobs/<JOB_ID> | jq
 
 ```bash
 curl -s http://localhost:8000/health | jq
-curl -s http://localhost:8000/ready | jq
+curl -s http://localhost:8000/ready | jq    # DB + data dir (+ Redis в scale mode)
 curl -s http://localhost:8000/metrics
 ```
 
 ## 5. Архитектура (30 сек устно)
 
-- **Clean Architecture + DDD** — domain не зависит от FastAPI/SQLite
+- **Clean Architecture + DDD** — domain не зависит от FastAPI/БД
 - **Ports & adapters** — Ozon, OpenAI, AmoCRM заменяемы
-- **Idempotent CRM** — повторный прогон не дублирует задачи
-- **Job API** — long-running work вне HTTP thread (thread pool + SQLite)
-- **Connection pooling** — shared `httpx.Client`
-- **98%+ test coverage**, CI, Docker
+- **Idempotent CRM** — file или Redis store
+- **Job API** — long-running work вне HTTP thread
+- **Scale** — Celery workers + PostgreSQL (`docs/SCALE.md`)
+- **Production** — API_KEY, rate limits, structured logs, OTEL/Sentry
+- **96%+ test coverage**, CI, Docker
 
-## 6. CLI (как в ТЗ)
+## 6. Scale demo (опционально)
+
+```bash
+docker compose --profile scale up --build
+```
+
+API + worker + Postgres + Redis в одной команде.
+
+## 7. CLI (как в ТЗ)
 
 ```bash
 make run
 ```
 
-## 7. CI
+## 8. CI
 
 ```bash
 make ci
@@ -58,8 +76,10 @@ make ci
 
 GitHub Actions: ruff → pytest → docker build.
 
-## Что сказать HR
+## Talking points
 
-> «Тестовое закрывает ТЗ (парсинг, LLM batching, CRM, моки, Docker, CI).  
-> Поверх — production-паттерны: REST API, async jobs, health/metrics, CA/DDD, idempotency.  
-> Всё покрыто тестами, включая API через TestClient.»
+- Почему 202 + polling, а не sync endpoint
+- Как `collection_target` в body переопределяет env
+- Что происходит при partial collection / parser degraded
+- Как идемпотентность защищает от дублей в AmoCRM
+- Как переключить single-node → multi-node через env

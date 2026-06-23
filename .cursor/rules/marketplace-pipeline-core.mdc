@@ -17,7 +17,9 @@ Python 3.11 · Pydantic v2 · httpx · tenacity · FastAPI · uvicorn · pytest 
 |---------|-----------|
 | `marketplace-pipeline` | CLI — sync one-shot run |
 | `marketplace-pipeline-api` | FastAPI — async jobs on :8000 |
+| `marketplace-pipeline-worker` | Celery worker (scale profile) |
 | `make run` / `make api` | Mock smoke for CLI / API |
+| `make scale-up` | Docker compose scale profile |
 
 ## Business invariants
 

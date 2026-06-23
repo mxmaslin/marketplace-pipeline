@@ -92,9 +92,15 @@ Back up `crm_idempotency.json` and `jobs.sqlite` in production to preserve state
 Built-in (API):
 
 - `GET /health` — liveness
-- `GET /ready` — readiness
-- `GET /metrics` — Prometheus-style counters (`pipeline_jobs_*`, `http_requests_total`)
+- `GET /ready` — readiness (SQLite ping + writable data dir; returns 503 when not ready)
+- `GET /metrics` — Prometheus counters + avg latency gauges
 - Response headers: `X-Request-ID`, `X-Response-Time-Ms`
+- Structured JSON logs when `LOG_JSON=true` (includes `correlation_id` on job runs)
+
+Security (production):
+
+- Set `API_KEY` — required for `/api/v1/*` via `X-API-Key` or `Authorization: Bearer`
+- `API_RATE_LIMIT_PER_MINUTE` — per-IP rate limit (default 60/min)
 
 Suggested alerts:
 
@@ -104,7 +110,9 @@ Suggested alerts:
 
 ## Scaling notes
 
-- 10K parse: sequential pages; consider async + rate limiter for prod
-- LLM: increase `LLM_BATCH_SIZE` cautiously (token limits)
-- Idempotency remote scan: 5×250 tasks max; extend if large AmoCRM account
-- API: increase `API_JOB_WORKERS`; for multi-node deploy replace thread pool with Celery/RQ + shared job store
+- **Single-node (default):** `sqlite` + `thread` pool — no Redis required
+- **Multi-node:** `pip install -e ".[scale]"` — see [docs/SCALE.md](SCALE.md)
+- `docker compose --profile scale up --build` — Postgres + Redis + API + Celery worker
+- API replicas share job state via PostgreSQL; workers scale horizontally via Celery
+- Redis: Celery broker, CRM idempotency, shared Prometheus job counters
+- Optional: `OTEL_ENABLED`, `SENTRY_DSN` for distributed tracing / errors

@@ -52,30 +52,38 @@ class OpenAiSegmentClassifier:
         ]
 
     def _classify_batch(self, batch: list[Product]) -> dict[str, PriceSegment]:
-        user_payload = [
-            {"id": p.id, "name": p.name, "description": p.description} for p in batch
-        ]
-        response = self._http.post(
-            f"{self._settings.openai_base_url.rstrip('/')}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {self._settings.openai_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": self._settings.openai_model,
-                "temperature": 0,
-                "response_format": {"type": "json_object"},
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {
-                        "role": "user",
-                        "content": json.dumps({"items": user_payload}, ensure_ascii=False),
-                    },
-                ],
-            },
-        )
-        content = response.json()["choices"][0]["message"]["content"]
-        return self._parse_segments(content, expected_ids={p.id for p in batch})
+        try:
+            user_payload = [
+                {"id": p.id, "name": p.name, "description": p.description} for p in batch
+            ]
+            response = self._http.post(
+                f"{self._settings.openai_base_url.rstrip('/')}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self._settings.openai_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self._settings.openai_model,
+                    "temperature": 0,
+                    "response_format": {"type": "json_object"},
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {
+                            "role": "user",
+                            "content": json.dumps({"items": user_payload}, ensure_ascii=False),
+                        },
+                    ],
+                },
+            )
+            content = response.json()["choices"][0]["message"]["content"]
+            return self._parse_segments(content, expected_ids={p.id for p in batch})
+        except Exception as exc:
+            logger.warning(
+                "LLM batch classification failed for %s products, using fallback: %s",
+                len(batch),
+                exc,
+            )
+            return {product.id: PriceSegment.STANDARD for product in batch}
 
     def _parse_segments(self, content: str, expected_ids: set[str]) -> dict[str, PriceSegment]:
         parsed = json.loads(content)

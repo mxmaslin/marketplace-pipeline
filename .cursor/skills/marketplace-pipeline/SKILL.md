@@ -7,7 +7,7 @@ description: >-
 
 # Marketplace Pipeline Skill
 
-## Architecture (v0.3)
+## Architecture (v0.5)
 
 Clean Architecture + DDD. Read [docs/CLEAN_ARCHITECTURE.md](../../docs/CLEAN_ARCHITECTURE.md).
 
@@ -25,60 +25,44 @@ RunPipelineUseCase
 
 ```
 POST /api/v1/pipeline/jobs
+  → validate_pipeline_prerequisites
   → SubmitPipelineJobUseCase
-  → PipelineJobRunner (thread pool)
-  → RunPipelineUseCase(collection_target=job.collection_target)
-  → SqliteJobRepository (JobRepositoryPort)
+  → JobRunnerPort (thread pool | Celery)
+  → pipeline_job_executor → RunPipelineUseCase
+  → JobRepositoryPort (SQLite | PostgreSQL)
 ```
 
-Composition root: `infrastructure/composition/container.py`  
+Composition: `infrastructure/composition/container.py` + `factories.py`  
 API wiring: `interfaces/api/lifecycle.py`
 
 ## First steps
 
 1. [AGENTS.md](../../AGENTS.md)
-2. Identify layer before editing (domain / application / infrastructure / interfaces)
-3. `make test` (≥95% coverage)
-4. API smoke: `make api` → http://localhost:8000/docs
-
-## Add CRM provider
-
-1. Implement `CrmGatewayPort` in `infrastructure/adapters/crm/`
-2. Reuse `domain/services/idempotency_policy.py`
-3. Wire in `Container.crm_gateway()`
-
-## Add marketplace
-
-1. Implement `CatalogCollectorPort`
-2. Wire in `Container.catalog_collector()`
-
-## Add API feature
-
-1. Application use case in `application/use_cases/`
-2. Route + schema in `interfaces/api/`
-3. Register router in `interfaces/api/app.py`
-4. Test with `TestClient(create_app())` context manager + `JOB_DB_PATH` in tmp_path
+2. Identify layer before editing
+3. `pip install -e ".[dev,scale]"` for full test suite
+4. `make test` (≥95% coverage)
+5. `make api` → http://localhost:8000/docs
 
 ## Key env vars
 
 | Var | Purpose |
 |-----|---------|
 | `MOCK_PARSER` / `MOCK_LLM` / `MOCK_CRM` | Offline dev |
-| `JOB_DB_PATH` | SQLite jobs (API) |
-| `API_JOB_WORKERS` | Background thread pool size |
-| `CRM_IDEMPOTENCY_STORE_PATH` | Dedupe store |
+| `JOB_STORE_BACKEND` | `sqlite` (default) or `postgres` |
+| `JOB_RUNNER_BACKEND` | `thread` (default) or `celery` |
+| `JOB_DB_PATH` / `DATABASE_URL` | Job persistence |
+| `API_KEY` | Protect `/api/v1/*` |
+| `CRM_IDEMPOTENCY_BACKEND` | `file` or `redis` |
 
-Full list: [docs/ENV.md](../../docs/ENV.md)
+Full list: [docs/ENV.md](../../docs/ENV.md) · Scale: [docs/SCALE.md](../../docs/SCALE.md)
 
-## Legacy imports (tests)
+## Add API feature
 
-```python
-from marketplace_pipeline.models import Product          # → domain.entities
-from marketplace_pipeline.pipeline import Pipeline       # → facade over use case
-```
-
-Prefer layered imports in new code.
+1. Application use case in `application/use_cases/`
+2. Route + schema in `interfaces/api/`
+3. Register router in `interfaces/api/app.py`
+4. Test with `TestClient(create_app())` + `JOB_DB_PATH` in tmp_path
 
 ## HR demo
 
-[docs/HR_DEMO.md](../../docs/HR_DEMO.md) — 5–7 min script: API, probes, architecture talking points.
+[docs/HR_DEMO.md](../../docs/HR_DEMO.md) — 5–7 min script.

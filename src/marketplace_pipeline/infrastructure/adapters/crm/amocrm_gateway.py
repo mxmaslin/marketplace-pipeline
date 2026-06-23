@@ -15,9 +15,6 @@ from marketplace_pipeline.domain.services.idempotency_policy import (
     compute_task_idempotency_key,
     extract_idempotency_marker,
 )
-from marketplace_pipeline.infrastructure.adapters.crm.file_idempotency_store import (
-    FileIdempotencyStore,
-)
 from marketplace_pipeline.infrastructure.config.settings import Settings
 from marketplace_pipeline.infrastructure.http.http_client import HttpClient
 
@@ -169,8 +166,10 @@ class AmoCrmGateway:
         return None
 
 
-def build_idempotency_store(settings: Settings, path: Path | None = None) -> FileIdempotencyStore:
-    return FileIdempotencyStore(
-        path or Path(settings.crm_idempotency_store_path),
-        enabled=settings.crm_idempotency_enabled,
+def build_idempotency_store(settings: Settings, path: Path | None = None) -> IdempotencyStorePort:
+    from marketplace_pipeline.infrastructure.composition.factories import (
+        build_idempotency_store as factory_build,
     )
+
+    output_dir = path.parent if path is not None else Path("data")
+    return factory_build(settings, output_dir, store_path=path)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from marketplace_pipeline.domain.models.pipeline_job import PipelineJob
 from marketplace_pipeline.domain.ports.job_repository import JobRepositoryPort
-from marketplace_pipeline.infrastructure.services.pipeline_job_runner import PipelineJobRunner
+from marketplace_pipeline.domain.ports.job_runner import JobRunnerPort
 
 
 class SubmitPipelineJobUseCase:
@@ -11,7 +11,7 @@ class SubmitPipelineJobUseCase:
     def __init__(
         self,
         job_repository: JobRepositoryPort,
-        job_runner: PipelineJobRunner,
+        job_runner: JobRunnerPort,
     ) -> None:
         self._job_repository = job_repository
         self._job_runner = job_runner
