@@ -64,6 +64,10 @@ Backends: `thread`+`sqlite` (default) или `celery`+`postgres`+`redis` (scale)
 
 ## Что стоит проверить ревьюеру
 
+**Полная пошаговая инструкция:** [docs/REVIEWER_GUIDE.md](docs/REVIEWER_GUIDE.md)
+
+Краткий чеклист:
+
 - [ ] Coverage ≥95% (`pytest`, сейчас ~96%)
 - [ ] `make run` — CLI mock pipeline
 - [ ] `make api` → /docs — submit job, poll status

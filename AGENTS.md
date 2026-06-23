@@ -95,6 +95,7 @@ See [docs/SCALE.md](docs/SCALE.md).
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow, APIs, job lifecycle |
 | [docs/SCALE.md](docs/SCALE.md) | Multi-node: Celery, Postgres, Redis |
 | [docs/HR_DEMO.md](docs/HR_DEMO.md) | HR demo script |
+| [docs/REVIEWER_GUIDE.md](docs/REVIEWER_GUIDE.md) | **Инструкция для ревьювера** |
 | [docs/TESTING.md](docs/TESTING.md) | Test patterns |
 | [docs/ENV.md](docs/ENV.md) | Environment variables |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Docker, prod, observability |

@@ -24,7 +24,7 @@ curl -X POST http://localhost:8000/api/v1/pipeline/jobs \
 
 Async jobs (202), `/health`, `/ready`, `/metrics`, `X-Request-ID`.  
 Production: `API_KEY`, `LOG_JSON=true`.  
-HR-сценарий: [docs/HR_DEMO.md](docs/HR_DEMO.md).
+Подробная инструкция для ревьювера: [docs/REVIEWER_GUIDE.md](docs/REVIEWER_GUIDE.md).
 
 ### Multi-node (scale)
 
@@ -94,6 +94,7 @@ Scale: marketplace-pipeline-worker (Celery) → shared executor → Postgres job
 | [docs/SCALE.md](docs/SCALE.md) | Multi-node deploy |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow, API |
 | [docs/HR_DEMO.md](docs/HR_DEMO.md) | Демо для HR |
+| [docs/REVIEWER_GUIDE.md](docs/REVIEWER_GUIDE.md) | **Инструкция для ревьювера** |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Docker и prod |
 
 ## Тесты
