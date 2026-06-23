@@ -3,10 +3,12 @@
 ## Quick start
 
 ```bash
-pytest                          # full suite + coverage
-pytest tests/test_crm.py -v     # single module
+pytest                          # full suite + coverage (~65 tests, ~98%)
+pytest tests/test_api.py -v     # FastAPI integration
+pytest tests/test_crm.py -v     # CRM module
 pytest -k idempotency           # by name
 pytest --cov=marketplace_pipeline --cov-report=html  # HTML report → htmlcov/
+make ci                           # ruff + pytest
 ```
 
 Coverage threshold: **95%** (enforced in `pyproject.toml`).
@@ -15,24 +17,43 @@ Coverage threshold: **95%** (enforced in `pyproject.toml`).
 
 1. **No real external calls in CI** — `MOCK_*=true` in GitHub Actions
 2. **HTTP mocking** — `pytest-httpx` for Ozon, OpenAI, AmoCRM
-3. **Temp dirs** — `tmp_path` for idempotency store, pipeline output
+3. **Temp dirs** — `tmp_path` for idempotency store, pipeline output, `JOB_DB_PATH`
 4. **Deterministic** — `MockParser` for reproducible product sets
+5. **API tests** — always use `with TestClient(create_app()) as client:` so lifespan runs
 
 ## Test layout
 
 ```
 tests/
-  test_parser.py       # factory, mock parser, ozon helpers
-  test_ozon_collect.py # ozon pagination with httpx mock
-  test_llm.py          # mock + openai batch
-  test_crm.py          # selectors, amocrm http
-  test_idempotency.py  # store, duplicate tasks, pipeline rerun
-  test_pipeline.py     # e2e, degradation, http 429
-  test_main.py         # CLI entry
-  test_coverage.py     # edge cases for missing branches
+  domain/
+    test_domain_services.py   # pure domain unit tests
+  test_parser.py              # factory, mock parser, ozon helpers
+  test_ozon_collect.py        # ozon pagination with httpx mock
+  test_llm.py                 # mock + openai batch
+  test_crm.py                 # selectors, amocrm http
+  test_idempotency.py         # store, duplicate tasks, pipeline rerun
+  test_pipeline.py            # e2e, degradation, http 429
+  test_main.py                # CLI entry
+  test_api.py                 # FastAPI health, jobs, metrics
+  test_job_repository.py      # SQLite job CRUD
+  test_job_runner.py          # background runner success/failure
+  test_coverage.py            # edge cases for missing branches
 ```
 
 ## Common patterns
+
+### API client fixture
+
+```python
+@pytest.fixture
+def api_client(tmp_path, monkeypatch):
+    monkeypatch.setenv("MOCK_PARSER", "true")
+    monkeypatch.setenv("MOCK_LLM", "true")
+    monkeypatch.setenv("MOCK_CRM", "true")
+    monkeypatch.setenv("JOB_DB_PATH", str(tmp_path / "jobs.sqlite"))
+    with TestClient(create_app()) as client:
+        yield client
+```
 
 ### Mock AmoCRM create
 
@@ -57,6 +78,10 @@ Pipeline(Settings(MOCK_PARSER=True, MOCK_LLM=True, MOCK_CRM=True, DEMO_MODE=True
          output_dir=tmp_path).run()
 ```
 
+### Job runner isolation
+
+Patch `Container.run_pipeline_use_case` to control pipeline outcome without HTTP.
+
 ## CI
 
 See [`.github/workflows/ci.yml`](../.github/workflows/ci.yml):
@@ -64,6 +89,8 @@ See [`.github/workflows/ci.yml`](../.github/workflows/ci.yml):
 ```
 ruff → pytest (mocks on) → docker build
 ```
+
+Env in CI: `MOCK_*=true`, `DEMO_MODE=true`, `DEMO_PRODUCT_COUNT=50`.
 
 ## Raising coverage
 
@@ -74,3 +101,5 @@ pytest --cov=marketplace_pipeline --cov-report=term-missing
 ```
 
 Target uncovered lines in the report. Prefer focused tests over broad integration tests.
+
+Common gaps: `HttpClient.__enter__/__exit__`, job runner failure path, metrics counter increments.

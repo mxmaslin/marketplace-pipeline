@@ -2,6 +2,8 @@
 
 ## Overview
 
+### CLI pipeline (assignment core)
+
 ```
 ┌─────────────┐    ┌──────────────────┐    ┌─────────────┐    ┌──────────────┐
 │   Parser    │───▶│ SegmentClassifier │───▶│  Selectors  │───▶│  AmoCRMClient │
@@ -15,6 +17,26 @@
                     ▼
          data/enriched_products.json
 ```
+
+### API layer (v0.3 — production-style demo)
+
+```
+Client ──POST /api/v1/pipeline/jobs──▶ FastAPI (202)
+              │                              │
+              │                              ▼
+              │                    SubmitPipelineJobUseCase
+              │                              │
+              │                              ▼
+              │                    PipelineJobRunner (thread pool)
+              │                              │
+              │                              ▼
+              └────GET /jobs/{id}──── RunPipelineUseCase → adapters
+                                              │
+                                              ▼
+                                    SQLite (data/jobs.sqlite)
+```
+
+Long-running work never blocks the HTTP thread. Job status persisted in SQLite; poll until `completed` or `failed`.
 
 ## Data model
 
@@ -34,6 +56,17 @@
 ### EnrichedProduct
 
 Extends `Product` with `segment: PriceSegment` (Эконом | Стандарт | Премиум).
+
+### PipelineJob (API)
+
+| Field | Notes |
+|-------|-------|
+| id | UUID |
+| status | pending → running → completed \| failed |
+| collection_target | Per-job override of settings |
+| collected_count, classified_count, crm_tasks_count | Filled on completion |
+| correlation_id | From `X-Request-ID` header |
+| error_message | Set when status=failed |
 
 ### CRM flow
 
@@ -66,11 +99,27 @@ Extends `Product` with `segment: PriceSegment` (Эконом | Стандарт 
 
 ## HTTP layer
 
-`HttpClient` wraps httpx sync client:
+`HttpClient` wraps a **shared** httpx sync client (connection pooling):
 
 - Retries: `RateLimitError` (429), `TransportError`
 - Backoff: exponential, max 60s
 - Configurable via `HTTP_MAX_RETRIES`, `HTTP_RETRY_BASE_DELAY`
+- Context manager: `with HttpClient() as client:` closes pool on exit
+- `Container` owns one client; job runner closes it after each job
+
+## API endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/pipeline/jobs` | Submit job (202), body: `{ "collection_target": N }` optional |
+| GET | `/api/v1/pipeline/jobs/{id}` | Poll job status |
+| GET | `/api/v1/pipeline/jobs` | List recent jobs (`limit` query param) |
+| GET | `/health` | Liveness |
+| GET | `/ready` | Readiness |
+| GET | `/metrics` | Prometheus-style counters |
+| GET | `/docs` | OpenAPI UI |
+
+Middleware: `X-Request-ID`, `X-Response-Time-Ms`.
 
 ## Configuration
 
@@ -78,6 +127,7 @@ Single `Settings` class (`pydantic-settings`):
 
 - Env file `.env`
 - `collection_target` property: demo vs production count
+- `job_db_path`, `api_job_workers` for API service
 
 ## Extension points
 
@@ -86,7 +136,8 @@ Single `Settings` class (`pydantic-settings`):
 | Wildberries | New parser class + factory branch |
 | Bitrix24 | New CRM client implementing same `create_task` contract |
 | YandexGPT | New classifier or strategy in `SegmentClassifier` |
-| PostgreSQL | Insert persistence between pipeline stages |
+| PostgreSQL | Replace `SqliteJobRepository` or add enriched-product store |
+| Celery/RQ | Replace `PipelineJobRunner` thread pool; keep use cases |
 
 ## Failure modes
 
@@ -97,4 +148,5 @@ Single `Settings` class (`pydantic-settings`):
 | Category exhausted | `exhausted=True`, partial OK |
 | LLM bad JSON | Raise in batch (pipeline fails) — consider soft-fail in prod |
 | AmoCRM duplicate run | Idempotency store prevents duplicate POST |
-| Missing AmoCRM creds | `ValueError` when `MOCK_CRM=false` |
+| Missing AmoCRM creds | `CrmConfigurationError` when `MOCK_CRM=false` |
+| Pipeline job failure | Job status `failed`, `error_message` set; HTTP 202 already returned |

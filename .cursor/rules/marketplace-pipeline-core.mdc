@@ -1,5 +1,5 @@
 ---
-description: Core conventions for marketplace-pipeline (test assignment)
+description: Core conventions for marketplace-pipeline (test assignment + API)
 alwaysApply: true
 ---
 
@@ -9,7 +9,15 @@ Read `AGENTS.md` before non-trivial changes.
 
 ## Stack
 
-Python 3.11 · Pydantic v2 · httpx · tenacity · pytest · ruff
+Python 3.11 · Pydantic v2 · httpx · tenacity · FastAPI · uvicorn · pytest · ruff
+
+## Entry points
+
+| Command | Interface |
+|---------|-----------|
+| `marketplace-pipeline` | CLI — sync one-shot run |
+| `marketplace-pipeline-api` | FastAPI — async jobs on :8000 |
+| `make run` / `make api` | Mock smoke for CLI / API |
 
 ## Business invariants
 
@@ -18,12 +26,13 @@ Python 3.11 · Pydantic v2 · httpx · tenacity · pytest · ruff
 - CRM idempotency: SHA-256(title+description), store at `data/crm_idempotency.json`
 - `MOCK_PARSER` is env-only (no separate mock HTTP server)
 - Segment «Стандарт» classified but not sent to CRM
+- API jobs: request `collection_target` overrides settings for that job
 
 ## Code style
 
-- External HTTP only through `HttpClient`
-- Settings via `config.Settings`, never raw `os.environ` in modules
-- New IO schemas as Pydantic models in `models.py`
+- External HTTP only through `HttpClient` (shared pool, close via context manager or Container)
+- Settings via `infrastructure/config/settings.py`, never raw `os.environ` in modules
+- New domain models in `domain/`; API schemas in `interfaces/api/schemas/`
 - Line length 100, ruff clean
 
 ## Before commit

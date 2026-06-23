@@ -17,18 +17,24 @@ interfaces → application → domain ← infrastructure
 
 | Layer | Path | Responsibility |
 |-------|------|----------------|
-| Domain | `domain/` | Entities, VOs, ports, domain services |
-| Application | `application/` | Use cases, app DTOs |
-| Infrastructure | `infrastructure/` | Adapters, config, HTTP, Container |
-| Interfaces | `interfaces/` | CLI |
+| Domain | `domain/` | Entities, VOs, ports, domain services, `PipelineJob` |
+| Application | `application/` | `RunPipelineUseCase`, `pipeline_jobs` use cases |
+| Infrastructure | `infrastructure/` | Adapters, config, HTTP, Container, `PipelineJobRunner` |
+| Interfaces | `interfaces/` | CLI + FastAPI (`api/`) |
 
 ## New code checklist
 
 1. Business logic → `domain/services/` or entity methods
 2. Orchestration → `application/use_cases/`
-3. External API → new adapter implementing a **port**
-4. Wire in `infrastructure/composition/container.py`
-5. Tests: domain=unit, adapters=pytest-httpx
+3. External API / DB → new adapter implementing a **port**
+4. Wire in `infrastructure/composition/container.py` or `interfaces/api/lifecycle.py`
+5. Tests: domain=unit, adapters=pytest-httpx, API=TestClient with lifespan
+
+## API rules
+
+- Routes are thin: validate → use case → response schema
+- No `RunPipelineUseCase.execute()` in request handler — use `PipelineJobRunner`
+- Per-job `collection_target` passed to `container.run_pipeline_use_case(target)`
 
 ## Legacy shims
 

@@ -1,14 +1,24 @@
 # Deployment
 
-## Local (recommended for demo)
+## Local CLI (assignment deliverable)
 
 ```bash
 cp .env.example .env
 # edit .env as needed
 marketplace-pipeline
+# or: make run
 ```
 
 Default `.env.example` uses all mocks + demo mode (100 products).
+
+## Local API (HR / production-style demo)
+
+```bash
+make api
+# OpenAPI: http://localhost:8000/docs
+```
+
+Submit jobs via `POST /api/v1/pipeline/jobs`. Job state in `data/jobs.sqlite` (configurable via `JOB_DB_PATH`).
 
 ## Docker
 
@@ -16,9 +26,19 @@ Default `.env.example` uses all mocks + demo mode (100 products).
 docker compose up --build
 ```
 
-- Image runs `marketplace-pipeline` on start
-- Env from `.env.example` baked via `docker-compose.yml`
-- Output volume: `./data:/app/data`
+Two services in `docker-compose.yml`:
+
+| Service | Command | Port |
+|---------|---------|------|
+| `pipeline` | `marketplace-pipeline` | — (one-shot CLI) |
+| `api` | `marketplace-pipeline-api` | 8000 |
+
+- Env from `.env.example` via `docker-compose.yml`
+- Volume: `./data:/app/data` (enriched JSON, idempotency store, jobs SQLite)
+
+```bash
+docker compose up api --build   # API only
+```
 
 ## Production-like run
 
@@ -34,7 +54,9 @@ AMOCRM_SUBDOMAIN=yourcompany
 AMOCRM_ACCESS_TOKEN=...
 AMOCRM_RESPONSIBLE_USER_ID=123456
 
-marketplace-pipeline
+marketplace-pipeline          # sync CLI
+# or
+marketplace-pipeline-api      # async job API
 ```
 
 ### Prerequisites
@@ -61,12 +83,22 @@ No deploy step — assignment scope is build + test only.
 |------|---------|-----|
 | `data/enriched_products.json` | Last run output | ignored |
 | `data/crm_idempotency.json` | CRM dedupe store | ignored |
+| `data/jobs.sqlite` | API job state | ignored |
 
-Back up `crm_idempotency.json` in production to preserve idempotency across redeploys.
+Back up `crm_idempotency.json` and `jobs.sqlite` in production to preserve state across redeploys.
 
-## Monitoring (suggested for prod)
+## Monitoring
 
-- Log lines: `Parser degraded`, `Category exhausted`, `CRM tasks: created=X reused=Y`
+Built-in (API):
+
+- `GET /health` — liveness
+- `GET /ready` — readiness
+- `GET /metrics` — Prometheus-style counters (`pipeline_jobs_*`, `http_requests_total`)
+- Response headers: `X-Request-ID`, `X-Response-Time-Ms`
+
+Suggested alerts:
+
+- Log lines: `Parser degraded`, `Category exhausted`, `CRM tasks: created=X reused=Y`, `Job … failed`
 - Alert on `degraded=True` or `collected_count == 0`
 - Track OpenAI token usage separately
 
@@ -75,3 +107,4 @@ Back up `crm_idempotency.json` in production to preserve idempotency across rede
 - 10K parse: sequential pages; consider async + rate limiter for prod
 - LLM: increase `LLM_BATCH_SIZE` cautiously (token limits)
 - Idempotency remote scan: 5×250 tasks max; extend if large AmoCRM account
+- API: increase `API_JOB_WORKERS`; for multi-node deploy replace thread pool with Celery/RQ + shared job store

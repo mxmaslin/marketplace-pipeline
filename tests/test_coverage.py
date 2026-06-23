@@ -193,6 +193,28 @@ def test_http_client_post_retries_429(httpx_mock: HTTPXMock) -> None:
     assert response.status_code == 200
 
 
+def test_http_client_context_manager_closes_pool(httpx_mock: HTTPXMock) -> None:
+    httpx_mock.add_response(status_code=200, json={"ok": True})
+    with HttpClient(max_retries=1, base_delay=0.01) as client:
+        response = client.get("https://example.com/get")
+        assert response.status_code == 200
+
+
+def test_metrics_registry_counters() -> None:
+    from marketplace_pipeline.interfaces.api.metrics import MetricsRegistry
+
+    metrics = MetricsRegistry()
+    metrics.inc_submitted()
+    metrics.inc_completed()
+    metrics.inc_failed()
+    metrics.inc_http()
+    text = metrics.render_prometheus()
+    assert "pipeline_jobs_submitted_total 1" in text
+    assert "pipeline_jobs_completed_total 1" in text
+    assert "pipeline_jobs_failed_total 1" in text
+    assert "http_requests_total 1" in text
+
+
 def test_ozon_collect_degraded(httpx_mock: HTTPXMock) -> None:
     httpx_mock.add_response(status_code=503)
     parser = OzonParser(Settings(MOCK_PARSER=False, HTTP_MAX_RETRIES=1))

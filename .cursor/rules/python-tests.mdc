@@ -9,8 +9,18 @@ alwaysApply: false
 ## Required
 
 - `pytest-httpx` for Ozon, OpenAI, AmoCRM HTTP
-- `tmp_path` for idempotency store and pipeline `output_dir`
-- Mock env via `Settings(MOCK_PARSER=True, ...)` not global env mutation
+- `tmp_path` for idempotency store, pipeline `output_dir`, `JOB_DB_PATH`
+- Mock env via `Settings(MOCK_PARSER=True, ...)` or `monkeypatch.setenv` in API tests
+- API: `with TestClient(create_app()) as client:` — lifespan must run
+
+## Test files (v0.3)
+
+| File | Scope |
+|------|-------|
+| `test_api.py` | health, ready, metrics, job submit/poll/list |
+| `test_job_repository.py` | SQLite CRUD |
+| `test_job_runner.py` | background success/failure |
+| `test_coverage.py` | edge branches (HttpClient, metrics, etc.) |
 
 ## Idempotency tests
 
@@ -30,6 +40,15 @@ Add tests in `test_coverage.py` for edge branches, not duplicate e2e.
 # BAD — real network in tests
 requests.get("https://www.ozon.ru/...")
 
+# BAD — TestClient without lifespan
+client = TestClient(create_app())  # app.state not initialized
+
 # GOOD
 httpx_mock.add_response(json={...})
+
+# GOOD
+with TestClient(create_app()) as client:
+    response = client.get("/health")
 ```
+
+See [docs/TESTING.md](../../docs/TESTING.md).

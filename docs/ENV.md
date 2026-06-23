@@ -50,6 +50,15 @@ All settings loaded via `pydantic-settings` from env and optional `.env` file.
 | `HTTP_RETRY_BASE_DELAY` | 1.0 |
 | `LOG_LEVEL` | INFO |
 
+## API service (FastAPI)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `JOB_DB_PATH` | data/jobs.sqlite | SQLite file for async job state |
+| `API_JOB_WORKERS` | 2 | Thread pool size for background pipeline runs |
+
+Used by `marketplace-pipeline-api` / `make api`. CLI-only runs ignore these unless API is started.
+
 ## Recommended profiles
 
 ### Local dev / CI
@@ -60,6 +69,19 @@ MOCK_PARSER=true
 MOCK_LLM=true
 MOCK_CRM=true
 ```
+
+### API demo (HR)
+
+```env
+DEMO_MODE=true
+MOCK_PARSER=true
+MOCK_LLM=true
+MOCK_CRM=true
+JOB_DB_PATH=data/jobs.sqlite
+API_JOB_WORKERS=2
+```
+
+Start: `make api` → http://localhost:8000/docs
 
 ### Staging (real APIs, small volume)
 
@@ -83,4 +105,6 @@ MOCK_PARSER=false
 MOCK_LLM=false
 MOCK_CRM=false
 CRM_IDEMPOTENCY_ENABLED=true
+JOB_DB_PATH=/var/lib/marketplace-pipeline/jobs.sqlite
+API_JOB_WORKERS=4
 ```

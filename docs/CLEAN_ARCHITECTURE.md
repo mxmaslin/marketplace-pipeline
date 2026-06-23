@@ -4,9 +4,9 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  interfaces/          CLI, future HTTP API                   │
+│  interfaces/          CLI + FastAPI (jobs, health, metrics)  │
 ├─────────────────────────────────────────────────────────────┤
-│  application/         Use cases (RunPipelineUseCase)        │
+│  application/         Use cases (pipeline + job management)  │
 ├─────────────────────────────────────────────────────────────┤
 │  domain/              Entities, VOs, domain services, ports  │
 ├─────────────────────────────────────────────────────────────┤
@@ -21,19 +21,21 @@
 |---------|----------|
 | `entities/` | `Product`, `EnrichedProduct` |
 | `value_objects/` | `PriceSegment` |
-| `models/` | `CollectionResult`, `CrmTaskRequest`, `CrmTaskOutcome` |
+| `models/` | `CollectionResult`, `CrmTaskRequest`, `CrmTaskOutcome`, `PipelineJob` |
 | `services/` | `ProductSelectionService`, `CrmTaskFactory`, `idempotency_policy` |
-| `ports/` | Protocol interfaces (collector, classifier, CRM, repository, store) |
+| `ports/` | Protocol interfaces (collector, classifier, CRM, repository, store, **job repository**) |
 | `exceptions/` | `DomainError`, `CrmConfigurationError` |
 
 **No imports** from application or infrastructure.
 
 ## Application (`application/`)
 
-- `use_cases/run_pipeline.py` — orchestrates ports, no HTTP/Ozon/AmoCRM details
-- `dto/pipeline_result.py` — use case output
+| Use case | Role |
+|----------|------|
+| `run_pipeline.py` | Orchestrates catalog → LLM → CRM → JSON output |
+| `pipeline_jobs.py` | Submit / get / list async pipeline jobs (API layer) |
 
-Depends on **domain only** (ports + services).
+Depends on **domain only** (ports + services). Job submit delegates execution to infrastructure runner via port injection at the interface boundary.
 
 ## Infrastructure (`infrastructure/`)
 
@@ -45,13 +47,25 @@ Depends on **domain only** (ports + services).
 | `AmoCrmGateway` | `CrmGatewayPort` | `adapters/crm/` |
 | `FileIdempotencyStore` | `IdempotencyStorePort` | `adapters/crm/` |
 | `JsonEnrichedProductRepository` | `EnrichedProductRepositoryPort` | `adapters/persistence/` |
+| `SqliteJobRepository` | `JobRepositoryPort` | `adapters/persistence/` |
+
+| Service | Role |
+|---------|------|
+| `PipelineJobRunner` | Thread-pool execution of `RunPipelineUseCase` per job |
+| `HttpClient` | Shared httpx connection pool, retries, 429 handling |
 
 - `composition/container.py` — **composition root** (DI wiring)
 - `config/settings.py` — env configuration (not domain)
 
 ## Interfaces (`interfaces/`)
 
-- `cli/main.py` — entrypoint, builds `Container`, runs use case
+| Entry | Role |
+|-------|------|
+| `cli/main.py` | Synchronous one-shot pipeline (assignment deliverable) |
+| `api/app.py` | FastAPI factory: middleware, routers, metrics |
+| `api/routes/jobs.py` | `POST/GET /api/v1/pipeline/jobs` (202 async pattern) |
+| `api/routes/health.py` | `/health`, `/ready` |
+| `api/lifecycle.py` | Startup: SQLite repo + job runner; shutdown: drain pool |
 
 ## Legacy shims (root package)
 
@@ -61,12 +75,12 @@ Files like `models.py`, `pipeline.py`, `parser/ozon.py` re-export new types for 
 
 | DDD concept | Implementation |
 |-------------|----------------|
-| Entity | `Product`, `EnrichedProduct` |
-| Value Object | `PriceSegment` |
+| Entity | `Product`, `EnrichedProduct`, `PipelineJob` |
+| Value Object | `PriceSegment`, `JobStatus` |
 | Domain Service | `ProductSelectionService`, `CrmTaskFactory` |
-| Repository (port) | `EnrichedProductRepositoryPort` |
+| Repository (port) | `EnrichedProductRepositoryPort`, `JobRepositoryPort` |
 | Anti-corruption layer | Ozon/OpenAI/AmoCRM adapters |
-| Application Service | `RunPipelineUseCase` |
+| Application Service | `RunPipelineUseCase`, `SubmitPipelineJobUseCase` |
 | Factory | `Container`, `CrmTaskFactory` |
 
 ## Adding a feature (example: Bitrix24)
@@ -83,6 +97,8 @@ Files like `models.py`, `pipeline.py`, `parser/ozon.py` re-export new types for 
 | Domain services | Pure unit tests, no mocks |
 | Use cases | Mock ports (Protocol fakes) |
 | Adapters | `pytest-httpx` integration tests |
+| Job repository | `tmp_path` SQLite file |
+| API | `TestClient` + lifespan context manager |
 | Container | Smoke / e2e via `Pipeline` facade |
 
 See [TESTING.md](TESTING.md).

@@ -54,16 +54,20 @@ marketplace-pipeline
 | `AMOCRM_SUBDOMAIN`, `AMOCRM_ACCESS_TOKEN` | AmoCRM (если `MOCK_CRM=false`) |
 | `CRM_IDEMPOTENCY_ENABLED` | Идемпотентность CRM (по умолчанию `true`) |
 | `CRM_IDEMPOTENCY_STORE_PATH` | Путь к JSON-store ключей |
+| `JOB_DB_PATH` | SQLite для async jobs (API) |
+| `API_JOB_WORKERS` | Размер thread pool для фоновых job |
 
 ## Архитектура
 
-Clean Architecture + DDD — [docs/CLEAN_ARCHITECTURE.md](docs/CLEAN_ARCHITECTURE.md).
+Clean Architecture + DDD (v0.3) — [docs/CLEAN_ARCHITECTURE.md](docs/CLEAN_ARCHITECTURE.md).
 
 ```
-interfaces/cli → Container → RunPipelineUseCase → ports → adapters
+CLI:  interfaces/cli → Container → RunPipelineUseCase → ports → adapters
+API:  interfaces/api → pipeline_jobs use cases → PipelineJobRunner → RunPipelineUseCase
 ```
 
-Фасад `Pipeline` (legacy) делегирует в use case. Результат: `data/enriched_products.json`.
+Фасад `Pipeline` (legacy) делегирует в use case. Результат: `data/enriched_products.json`.  
+API jobs: `data/jobs.sqlite`, poll `GET /api/v1/pipeline/jobs/{id}`.
 
 ## Бизнес-правила (зафиксированные трактовки)
 
@@ -80,6 +84,8 @@ interfaces/cli → Container → RunPipelineUseCase → ports → adapters
 | [AGENTS.md](AGENTS.md) | Инструкции для AI-агентов |
 | [vision.md](vision.md) | Исходное ТЗ |
 | [AI_USAGE.md](AI_USAGE.md) | Лог использования ИИ (deliverable) |
+| [docs/CLEAN_ARCHITECTURE.md](docs/CLEAN_ARCHITECTURE.md) | Слои Clean Architecture + DDD |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow, API, job lifecycle |
 | [docs/HR_DEMO.md](docs/HR_DEMO.md) | Сценарий демо для HR (API, curl, talking points) |
 | [docs/ENV.md](docs/ENV.md) | Переменные окружения |
 | [docs/TESTING.md](docs/TESTING.md) | Тестирование |
@@ -118,14 +124,14 @@ GitHub Actions: `ruff` → `pytest` → `docker build` (см. [`.github/workflow
 
 ```
 src/marketplace_pipeline/
-  config.py          # pydantic-settings
-  models.py          # Product, EnrichedProduct, PriceSegment
-  http_client.py     # retries + 429
-  parser/            # Ozon + Mock
-  llm/               # batch classifier
-  crm/               # AmoCRM client + idempotency store
-  selectors.py       # top-N logic
-  pipeline.py        # orchestration
-  main.py            # CLI entrypoint
+  domain/              # entities, ports, domain services, PipelineJob
+  application/         # RunPipelineUseCase, pipeline_jobs use cases
+  infrastructure/      # adapters, Container, HttpClient, job runner, SQLite
+  interfaces/
+    cli/               # marketplace-pipeline
+    api/               # marketplace-pipeline-api (FastAPI)
+  models.py, pipeline.py, parser/, crm/, llm/   # legacy shims
 tests/
+  test_api.py, test_job_repository.py, test_job_runner.py
+  test_pipeline.py, test_crm.py, ...
 ```
