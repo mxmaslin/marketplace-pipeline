@@ -43,7 +43,7 @@ API wiring: `interfaces/api/lifecycle.py`
 1. [AGENTS.md](../../AGENTS.md)
 2. Identify layer before editing
 3. `pip install -e ".[dev,scale]"` for full test suite
-4. `make test` (≥95% coverage, ~137 tests)
+4. `make test` (≥95% coverage, ~144 tests)
 5. `make api` → http://localhost:8000/docs
 
 Live Ozon: own `OZON_PROXY_LIST` + optional `PROXY_MARKET_API_KEY` in **local** `.env` only (never commit). See [docs/REVIEWER_GUIDE.md §15](../../docs/REVIEWER_GUIDE.md).

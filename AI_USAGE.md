@@ -47,7 +47,7 @@
 - Job stores: SQLite + PostgreSQL; Alembic migrations
 - Job idempotency: `Idempotency-Key` on submit (memory/Redis)
 - Observability: `MetricsRegistry` (in-memory or Redis), JSON logs, correlation_id, OTEL, Sentry (optional)
-- pytest (~137 tests, ~95% coverage), Docker, compose scale profile, CI
+- pytest (~144 tests, ~95% coverage), Docker, compose scale profile, CI
 - Docs: AGENTS.md, SCALE.md, rules, skills
 
 ## Исправлено / уточнено вручную (кандидатом)
@@ -89,7 +89,7 @@ cp .env.example .env    # MOCK_PARSER/MOCK_LLM/MOCK_CRM=true по умолчан
 
 | Требование vision.md | Команда / артефакт | Ожидание |
 |----------------------|-------------------|----------|
-| pytest, coverage ≥70% | `make ci` | ruff clean, **137 passed**, coverage **≥95%** |
+| pytest, coverage ≥70% | `make ci` | ruff clean, **144 passed**, coverage **≥95%** |
 | Моки внешних HTTP | `pytest tests/test_ozon_collect.py tests/test_llm.py tests/test_crm.py -v` | все green, без сети |
 | AI_USAGE.md | этот файл | промпты, архитектура, ограничения |
 | docker-compose | `docker compose up api --build` | API на :8000, `curl /health` → 200 |
@@ -209,7 +209,7 @@ rg "from marketplace_pipeline\.(infrastructure|interfaces|application)" src/mark
 
 **Минимум по vision.md:**
 
-- [ ] `make ci` — green (137 tests, ≥95% coverage)
+- [ ] `make ci` — green (144 tests, ≥95% coverage)
 - [ ] `make run` — exit 0, `data/enriched_products.json` с сегментами
 - [ ] CRM: 2 задачи (Премиум + Эконом), Стандарт только в JSON
 - [ ] Повторный `make run` → CRM `reused=true`

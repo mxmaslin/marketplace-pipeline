@@ -110,7 +110,7 @@ Scale: marketplace-pipeline-worker (Celery) → shared executor → Postgres job
 ## Тесты
 
 ```bash
-make test          # pytest, ≥95% coverage (~137 tests)
+make test          # pytest, ≥95% coverage (~144 tests)
 make ci            # ruff + pytest
 ```
 
