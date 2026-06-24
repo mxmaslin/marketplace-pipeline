@@ -42,8 +42,8 @@ Ozon (парсинг) → OpenAI (сегменты) → AmoCRM (задачи)
 ### Шаг 1 — клонирование и установка
 
 ```bash
-git clone <repo-url>
-cd cryprobez   # или имя корня репозитория
+git clone https://github.com/mxmaslin/marketplace-pipeline.git
+cd marketplace-pipeline
 
 python3 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate

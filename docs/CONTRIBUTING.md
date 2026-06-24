@@ -3,8 +3,8 @@
 ## Setup
 
 ```bash
-git clone <repo>
-cd cryprobez
+git clone https://github.com/mxmaslin/marketplace-pipeline.git
+cd marketplace-pipeline
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev,scale]"
@@ -35,7 +35,7 @@ Conventional commits (English or Russian):
 feat(api): add job cancellation endpoint
 fix(parser): handle empty widgetStates page
 test(api): cover job failure status
-docs: update CLEAN_ARCHITECTURE for v0.3
+docs: update CLEAN_ARCHITECTURE for v0.5
 ```
 
 ## Pull request checklist

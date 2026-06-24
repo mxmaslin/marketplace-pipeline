@@ -40,7 +40,7 @@ docker compose --profile scale up --build
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev,scale]"
 cp .env.example .env
 marketplace-pipeline
 ```
@@ -96,7 +96,7 @@ Scale: marketplace-pipeline-worker (Celery) → shared executor → Postgres job
 | [docs/SCALE.md](docs/SCALE.md) | Multi-node deploy |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow, API |
 | [docs/HR_DEMO.md](docs/HR_DEMO.md) | Демо для HR |
-| [docs/REVIEWER_GUIDE.md](docs/REVIEWER_GUIDE.md) | **Инструкция для ревьювера** |
+| [docs/REVIEWER_GUIDE.md](docs/REVIEWER_GUIDE.md) | **Инструкция для ревьювера / интервьюера** |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Docker и prod |
 
 ## Тесты

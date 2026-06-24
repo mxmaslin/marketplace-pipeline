@@ -28,6 +28,16 @@ curl -s -X POST http://localhost:8000/api/v1/pipeline/jobs \
   -d '{"collection_target": 50}'
 ```
 
+Job submit idempotency (бонус):
+
+```bash
+curl -s -X POST http://localhost:8000/api/v1/pipeline/jobs \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: demo-key-1" \
+  -d '{"collection_target": 50}'
+# повторить — тот же job id
+```
+
 ## 3. Poll status
 
 ```bash
@@ -58,6 +68,7 @@ curl -s http://localhost:8000/metrics
 
 ```bash
 docker compose --profile scale up --build
+# перед первым запуском с Postgres: alembic upgrade head (см. docs/SCALE.md)
 ```
 
 API + worker + Postgres + Redis в одной команде.

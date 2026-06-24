@@ -1,15 +1,18 @@
 ---
 description: CRM and idempotency conventions
-globs: src/marketplace_pipeline/crm/**/*.py
+globs: src/marketplace_pipeline/infrastructure/adapters/crm/**/*.py
 alwaysApply: false
 ---
 
 # CRM Module Rules
 
+Primary implementation: `infrastructure/adapters/crm/` (`AmoCrmGateway`, idempotency stores).  
+Legacy shims: `crm/amocrm.py`, `models.py` (`CRMTaskPayload` → `CrmTaskRequest`).
+
 ## Idempotency flow
 
-1. `compute_idempotency_key(CRMTaskPayload)` — stable hash
-2. Check `IdempotencyStore` → return `CRMTaskResult(reused=True)`
+1. `compute_task_idempotency_key(CrmTaskRequest)` — stable SHA-256 in `domain/services/idempotency_policy.py`
+2. Check `IdempotencyStorePort` → return `CrmTaskOutcome(reused=True)`
 3. Remote reconcile: scan AmoCRM tasks for `[pipeline:idempotency:KEY]`
 4. On create: append marker to task text, persist store
 
@@ -32,5 +35,5 @@ alwaysApply: false
 
 ## New CRM provider
 
-Implement `create_task(payload) -> CRMTaskResult` with same idempotency contract.
-Wire in `pipeline.py`; add factory if multiple CRMs supported.
+Implement `CrmGatewayPort.create_task()` with same idempotency contract.  
+Wire in `infrastructure/composition/factories.py` / `container.py`.

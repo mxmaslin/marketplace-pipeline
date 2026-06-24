@@ -18,8 +18,10 @@ RunPipelineUseCase
   ├── CatalogCollectorPort     → OzonCatalogCollector | MockCatalogCollector
   ├── SegmentClassifierPort    → OpenAiSegmentClassifier
   ├── CrmGatewayPort           → AmoCrmGateway
-  └── EnrichedProductRepositoryPort → JsonEnrichedProductRepository
+  └── EnrichedProductRepositoryPort → JsonEnrichedProductRepository | PostgresEnrichedProductRepository
 ```
+
+Enriched output: `build_enriched_product_repository()` — JSON file (default) or Postgres when `JOB_STORE_BACKEND=postgres`.
 
 ### Async jobs (API)
 
