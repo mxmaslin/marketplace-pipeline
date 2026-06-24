@@ -21,6 +21,25 @@ All settings loaded via `pydantic-settings` from env and optional `.env` file.
 | `OZON_API_BASE_URL` | `https://www.ozon.ru/api/composer-api.bx/page/json/v2` |
 | `OZON_PAGE_SIZE` | 36 |
 | `OZON_REQUEST_TIMEOUT` | 30.0 |
+| `OZON_REQUEST_DELAY_SECONDS` | 1.0 | Pause between Ozon page fetches (fixed when min/max unset) |
+| `OZON_REQUEST_DELAY_MIN_SECONDS` | (unset) | Random jitter lower bound (with max, overrides fixed delay) |
+| `OZON_REQUEST_DELAY_MAX_SECONDS` | (unset) | Random jitter upper bound |
+| `OZON_FOLLOW_REDIRECTS` | true | Follow Ozon `__rr=1` redirects |
+| `OZON_WARMUP_SESSION` | true | GET category page before composer API |
+| `OZON_ROTATE_USER_AGENTS` | true | Random browser UA per retry |
+| `OZON_PROXY_LIST` | (empty) | Comma-separated HTTP(S) proxies; rotated on 403/429 |
+| `OZON_COOKIE` | (empty) | Optional `Cookie` header copied from browser session |
+
+## proxy.market (live Ozon)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PROXY_MARKET_API_KEY` | (empty) | Dashboard API key; enables pre-flight traffic check |
+| `PROXY_MARKET_MIN_TRAFFIC_BYTES` | 1048576 | Fail fast when remaining package traffic is below this (1 MB) |
+
+When `MOCK_PARSER=false`, `OZON_PROXY_LIST` is set, and `PROXY_MARKET_API_KEY` is set, the pipeline checks proxy.market packages before collection. Exhausted traffic → `ProxyQuotaExhaustedError` (CLI exit 1, API `402 Payment Required`). API docs: https://api.dashboard.proxy.market/docs
+
+**Never commit** real `OZON_PROXY_LIST`, `PROXY_MARKET_API_KEY`, or `OZON_COOKIE` — use local `.env` only.
 
 ## OpenAI
 

@@ -6,6 +6,10 @@ from marketplace_pipeline.application.use_cases.run_pipeline import RunPipelineU
 from marketplace_pipeline.domain.ports.enriched_product_repository import (
     EnrichedProductRepositoryPort,
 )
+from marketplace_pipeline.domain.services.proxy_prerequisites import (
+    ProxyPrerequisites,
+    validate_proxy_prerequisites,
+)
 from marketplace_pipeline.infrastructure.adapters.crm.amocrm_gateway import AmoCrmGateway
 from marketplace_pipeline.infrastructure.adapters.llm.openai_classifier import (
     OpenAiSegmentClassifier,
@@ -24,6 +28,7 @@ class Container:
         settings: Settings,
         *,
         http_client: HttpClient | None = None,
+        ozon_collector_http_client: HttpClient | None = None,
         output_dir: Path | None = None,
     ) -> None:
         self.settings = settings
@@ -33,11 +38,17 @@ class Container:
             base_delay=settings.http_retry_base_delay,
             timeout=settings.ozon_request_timeout,
         )
+        self._ozon_collector_http_client = ozon_collector_http_client
 
     def catalog_collector(self) -> MockCatalogCollector | OzonCatalogCollector:
         if self.settings.mock_parser:
             return MockCatalogCollector(self.settings)
-        return OzonCatalogCollector(self.settings, http_client=self.http_client)
+        if self._ozon_collector_http_client is not None:
+            return OzonCatalogCollector(
+                self.settings,
+                http_client=self._ozon_collector_http_client,
+            )
+        return OzonCatalogCollector(self.settings)
 
     def segment_classifier(self) -> OpenAiSegmentClassifier:
         return OpenAiSegmentClassifier(self.settings, http_client=self.http_client)
@@ -69,3 +80,22 @@ class Container:
             product_repository=self.product_repository(),
             collection_target=collection_target or self.settings.collection_target,
         )
+
+    def validate_proxy_prerequisites(self) -> None:
+        from marketplace_pipeline.infrastructure.composition.factories import (
+            build_proxy_quota_checker,
+        )
+
+        checker = build_proxy_quota_checker(self.settings)
+        try:
+            validate_proxy_prerequisites(
+                ProxyPrerequisites(
+                    mock_parser=self.settings.mock_parser,
+                    ozon_proxy_list=self.settings.ozon_proxy_list,
+                    proxy_market_api_key=self.settings.proxy_market_api_key,
+                ),
+                quota_checker=checker,
+            )
+        finally:
+            if checker is not None and hasattr(checker, "close"):
+                checker.close()

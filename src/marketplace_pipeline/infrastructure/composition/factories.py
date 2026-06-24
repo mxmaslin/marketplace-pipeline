@@ -27,6 +27,19 @@ from marketplace_pipeline.infrastructure.services.pipeline_job_runner import Pip
 logger = logging.getLogger(__name__)
 
 
+def build_proxy_quota_checker(settings: Settings) -> object | None:
+    if not settings.proxy_market_api_key.strip():
+        return None
+    from marketplace_pipeline.infrastructure.adapters.proxy.proxy_market_quota_checker import (
+        ProxyMarketQuotaChecker,
+    )
+
+    return ProxyMarketQuotaChecker(
+        api_key=settings.proxy_market_api_key,
+        min_remaining_bytes=settings.proxy_market_min_traffic_bytes,
+    )
+
+
 def build_job_repository(settings: Settings) -> JobRepositoryPort:
     if settings.job_store_backend == "postgres":
         from marketplace_pipeline.infrastructure.adapters.persistence import (

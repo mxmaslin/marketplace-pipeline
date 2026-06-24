@@ -12,3 +12,7 @@ class CrmConfigurationError(DomainError):
 
 class PipelineConfigurationError(DomainError):
     pass
+
+
+class ProxyQuotaExhaustedError(DomainError):
+    """Proxy provider traffic or account balance is exhausted."""

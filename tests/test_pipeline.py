@@ -7,6 +7,7 @@ from pytest_httpx import HTTPXMock
 from marketplace_pipeline.config import Settings
 from marketplace_pipeline.http_client import HttpClient, RateLimitError
 from marketplace_pipeline.pipeline import Pipeline
+from tests.helpers import http_client_for_settings
 
 
 def test_http_client_retries_on_429(httpx_mock: HTTPXMock) -> None:
@@ -58,7 +59,11 @@ def test_pipeline_graceful_degradation(tmp_path: Path, httpx_mock: HTTPXMock) ->
     )
     httpx_mock.add_response(status_code=500)
 
-    pipeline = Pipeline(settings, output_dir=tmp_path)
+    pipeline = Pipeline(
+        settings,
+        output_dir=tmp_path,
+        ozon_http_client=http_client_for_settings(settings),
+    )
     result = pipeline.run()
 
     assert result.parser_result.degraded is True

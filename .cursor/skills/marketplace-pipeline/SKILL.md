@@ -28,6 +28,7 @@ Enriched output: `build_enriched_product_repository()` — JSON file (default) o
 ```
 POST /api/v1/pipeline/jobs
   → validate_pipeline_prerequisites
+  → validate_proxy_prerequisites (proxy.market quota when API key set)
   → SubmitPipelineJobUseCase (+ optional Idempotency-Key)
   → JobRunnerPort (thread pool | Celery)
   → pipeline_job_executor → RunPipelineUseCase
@@ -42,8 +43,10 @@ API wiring: `interfaces/api/lifecycle.py`
 1. [AGENTS.md](../../AGENTS.md)
 2. Identify layer before editing
 3. `pip install -e ".[dev,scale]"` for full test suite
-4. `make test` (≥95% coverage, ~108 tests)
+4. `make test` (≥95% coverage, ~137 tests)
 5. `make api` → http://localhost:8000/docs
+
+Live Ozon: own `OZON_PROXY_LIST` + optional `PROXY_MARKET_API_KEY` in **local** `.env` only (never commit). See [docs/REVIEWER_GUIDE.md §15](../../docs/REVIEWER_GUIDE.md).
 
 ## Key env vars
 
@@ -56,6 +59,8 @@ API wiring: `interfaces/api/lifecycle.py`
 | `API_KEY` | Protect `/api/v1/*` (`compare_digest`) |
 | `JOB_IDEMPOTENCY_TTL_SECONDS` | TTL for `Idempotency-Key` on job submit |
 | `CRM_IDEMPOTENCY_BACKEND` | `file` or `redis` |
+| `OZON_PROXY_LIST` | Own proxy list for live Ozon (local `.env` only) |
+| `PROXY_MARKET_API_KEY` | Optional proxy.market traffic pre-flight |
 
 Scale: run `alembic upgrade head` before Postgres deploy.  
 Full list: [docs/ENV.md](../../docs/ENV.md) · Scale: [docs/SCALE.md](../../docs/SCALE.md)

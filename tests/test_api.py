@@ -259,3 +259,28 @@ def test_job_submit_idempotency_redis_mock(
             assert first.status_code == 202
             assert second.status_code == 202
             assert first.json()["id"] == second.json()["id"]
+
+
+def test_submit_job_proxy_quota_exhausted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from marketplace_pipeline.domain.exceptions import ProxyQuotaExhaustedError
+
+    monkeypatch.setenv("MOCK_PARSER", "false")
+    monkeypatch.setenv("MOCK_LLM", "true")
+    monkeypatch.setenv("MOCK_CRM", "true")
+    monkeypatch.setenv("OZON_PROXY_LIST", "http://user:pass@pool.proxy.market:10000")
+    monkeypatch.setenv("PROXY_MARKET_API_KEY", "test-key")
+    monkeypatch.setenv("JOB_DB_PATH", str(tmp_path / "jobs.sqlite"))
+
+    checker = MagicMock()
+    checker.check_quota_available.side_effect = ProxyQuotaExhaustedError(
+        "PROXY_MARKET traffic exhausted"
+    )
+    with patch(
+        "marketplace_pipeline.interfaces.api.routes.jobs.build_proxy_quota_checker",
+        return_value=checker,
+    ):
+        with TestClient(create_app()) as client:
+            response = client.post("/api/v1/pipeline/jobs", json={"collection_target": 10})
+    assert response.status_code == 402
+    assert "traffic exhausted" in response.json()["detail"]
+    checker.close.assert_called_once()

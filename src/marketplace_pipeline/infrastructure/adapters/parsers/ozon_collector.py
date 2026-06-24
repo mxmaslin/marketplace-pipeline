@@ -5,9 +5,14 @@ import re
 from datetime import UTC, datetime
 
 from marketplace_pipeline.domain.entities.product import Product
+from marketplace_pipeline.domain.exceptions import ProxyQuotaExhaustedError
 from marketplace_pipeline.domain.models.collection_result import CollectionResult
 from marketplace_pipeline.infrastructure.config.settings import Settings
 from marketplace_pipeline.infrastructure.http.http_client import HttpClient
+from marketplace_pipeline.infrastructure.http.ozon_http import (
+    OzonHttpClient,
+    build_ozon_http_client_from_settings,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +22,16 @@ CATEGORY_NAME = "Смартфоны"
 class OzonCatalogCollector:
     """Infrastructure adapter: Ozon composer API → domain Product entities."""
 
-    def __init__(self, settings: Settings, http_client: HttpClient | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        http_client: HttpClient | None = None,
+        ozon_http: OzonHttpClient | None = None,
+    ) -> None:
         self._settings = settings
-        self._http = http_client or HttpClient(
-            max_retries=settings.http_max_retries,
-            base_delay=settings.http_retry_base_delay,
-            timeout=settings.ozon_request_timeout,
+        self._http = http_client
+        self._ozon_http = ozon_http or (
+            None if http_client is not None else build_ozon_http_client_from_settings(settings)
         )
 
     def collect(self, target_count: int) -> CollectionResult:
@@ -32,28 +41,38 @@ class OzonCatalogCollector:
         error_message: str | None = None
         seen_ids: set[str] = set()
 
-        while len(products) < target_count:
-            try:
-                batch = self._fetch_page(page)
-            except Exception as exc:
-                degraded = True
-                error_message = str(exc)
-                logger.error("Parser degraded on page %s: %s", page, exc)
-                break
-
-            if not batch:
-                logger.info("Category exhausted at page %s with %s products", page, len(products))
-                break
-
-            for product in batch:
-                if product.id in seen_ids:
-                    continue
-                seen_ids.add(product.id)
-                products.append(product)
-                if len(products) >= target_count:
+        try:
+            while len(products) < target_count:
+                try:
+                    batch = self._fetch_page(page)
+                except ProxyQuotaExhaustedError:
+                    raise
+                except Exception as exc:
+                    degraded = True
+                    error_message = str(exc)
+                    logger.error("Parser degraded on page %s: %s", page, exc)
                     break
 
-            page += 1
+                if not batch:
+                    logger.info(
+                        "Category exhausted at page %s with %s products",
+                        page,
+                        len(products),
+                    )
+                    break
+
+                for product in batch:
+                    if product.id in seen_ids:
+                        continue
+                    seen_ids.add(product.id)
+                    products.append(product)
+                    if len(products) >= target_count:
+                        break
+
+                page += 1
+        finally:
+            if self._ozon_http is not None:
+                self._ozon_http.close()
 
         exhausted = len(products) < target_count and not degraded
         return CollectionResult(
@@ -66,17 +85,21 @@ class OzonCatalogCollector:
         )
 
     def _fetch_page(self, page: int) -> list[Product]:
-        params = {"url": self._page_url(page)}
-        headers = {
-            "User-Agent": "Mozilla/5.0 (compatible; MarketplacePipeline/0.1)",
-            "Accept": "application/json",
-        }
-        response = self._http.get(
-            self._settings.ozon_api_base_url,
-            headers=headers,
-            params=params,
-        )
-        products = self._parse_products(response.json())
+        page_path = self._page_url(page)
+        if self._ozon_http is not None:
+            payload = self._ozon_http.get_composer_json(page_path=page_path)
+        else:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (compatible; MarketplacePipeline/0.1)",
+                "Accept": "application/json",
+            }
+            response = self._http.get(  # type: ignore[union-attr]
+                self._settings.ozon_api_base_url,
+                headers=headers,
+                params={"url": page_path},
+            )
+            payload = response.json()
+        products = self._parse_products(payload)
         return products[: self._settings.ozon_page_size]
 
     def _page_url(self, page: int) -> str:

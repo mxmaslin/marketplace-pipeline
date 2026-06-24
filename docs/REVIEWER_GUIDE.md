@@ -62,7 +62,7 @@ make ci
 **Ожидаемый результат:**
 
 - `ruff` — без ошибок
-- `pytest` — **108 passed**, coverage **≥95%** (сейчас ~95%)
+- `pytest` — **137 passed**, coverage **≥95%** (сейчас ~95%)
 
 HTML-отчёт покрытия (опционально):
 
@@ -466,9 +466,32 @@ jq '.meta.collected_count, (.products | length)' data/enriched_products.json
 
 ## 14. Что сознательно вне scope
 
-- Реальный сбор 10K с Ozon без mock (нужен доступ к API, anti-bot)
+- Реальный сбор 10K с Ozon без mock (нужен доступ к API, anti-bot, **proxy.market трафик**)
 - Боевые задачи в AmoCRM (нужен OAuth token)
 - Kubernetes / Terraform
 - Полноценный staging с OTEL collector (хуки есть, деплой — на стороне ops)
 
 Это описано в README и `AI_USAGE.md` — не баг, а ограничение тестового задания.
+
+---
+
+## 15. Live Ozon + proxy.market (опционально)
+
+> **Секреты не в репозитории.** Для live-сбора нужны **свои** учётные данные в локальном `.env` (файл в `.gitignore`): прокси-лист, API-ключ proxy.market, при необходимости `OZON_COOKIE`, OpenAI, AmoCRM. В репозитории только плейсхолдеры в `.env.example`.
+
+Для **реального** сбора (не mock) кандидат может использовать [proxy.market](https://proxy.market) — резидентские прокси RU, липкая сессия.
+
+| Переменная | Назначение |
+|------------|------------|
+| `MOCK_PARSER=false` | Включить живой Ozon |
+| `OZON_PROXY_LIST` | `http://login:pass@pool.proxy.market:10000` |
+| `PROXY_MARKET_API_KEY` | API-ключ из ЛК (доки: https://api.dashboard.proxy.market/docs) |
+
+**Pre-flight:** при наличии API-ключа пайплайн проверяет остаток трафика в пакете **до** сбора. Если трафик закончился:
+
+- CLI → exit `1`, сообщение `PROXY_MARKET traffic exhausted … Top up at https://proxy.market`
+- API → HTTP `402 Payment Required` на `POST /api/v1/pipeline/jobs`
+
+**Для ревьюера:** mock-режим (`make run`) **не требует** прокси и API-ключа. Проверка quota покрыта unit-тестами (`tests/test_proxy_market_quota.py`).
+
+**Ориентир по трафику:** демо 50 товаров ~20–80 MB; полный 10K может потребовать 0.5–2 GB (зависит от 403/ретраев).

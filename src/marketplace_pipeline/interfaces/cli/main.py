@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import sys
 
+from marketplace_pipeline.domain.exceptions import ProxyQuotaExhaustedError
 from marketplace_pipeline.infrastructure.composition.container import Container
 from marketplace_pipeline.infrastructure.config.settings import get_settings
 
@@ -19,7 +20,12 @@ def main() -> int:
     configure_logging(settings.log_level)
 
     try:
-        result = Container(settings).run_pipeline_use_case().execute()
+        container = Container(settings)
+        container.validate_proxy_prerequisites()
+        result = container.run_pipeline_use_case().execute()
+    except ProxyQuotaExhaustedError as exc:
+        logging.error("%s", exc)
+        return 1
     except Exception:
         logging.exception("Pipeline failed")
         return 1

@@ -34,6 +34,26 @@ class Settings(BaseSettings):
     )
     ozon_page_size: int = Field(default=36, alias="OZON_PAGE_SIZE")
     ozon_request_timeout: float = Field(default=30.0, alias="OZON_REQUEST_TIMEOUT")
+    ozon_request_delay_seconds: float = Field(default=1.0, alias="OZON_REQUEST_DELAY_SECONDS")
+    ozon_request_delay_min_seconds: float | None = Field(
+        default=None,
+        alias="OZON_REQUEST_DELAY_MIN_SECONDS",
+    )
+    ozon_request_delay_max_seconds: float | None = Field(
+        default=None,
+        alias="OZON_REQUEST_DELAY_MAX_SECONDS",
+    )
+    ozon_follow_redirects: bool = Field(default=True, alias="OZON_FOLLOW_REDIRECTS")
+    ozon_warmup_session: bool = Field(default=True, alias="OZON_WARMUP_SESSION")
+    ozon_rotate_user_agents: bool = Field(default=True, alias="OZON_ROTATE_USER_AGENTS")
+    ozon_proxy_list: str = Field(default="", alias="OZON_PROXY_LIST")
+    ozon_cookie: str = Field(default="", alias="OZON_COOKIE")
+
+    proxy_market_api_key: str = Field(default="", alias="PROXY_MARKET_API_KEY")
+    proxy_market_min_traffic_bytes: int = Field(
+        default=1_048_576,
+        alias="PROXY_MARKET_MIN_TRAFFIC_BYTES",
+    )
 
     llm_provider: str = Field(default="openai", alias="LLM_PROVIDER")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")

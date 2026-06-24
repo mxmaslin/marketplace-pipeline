@@ -7,6 +7,7 @@ from marketplace_pipeline.config import Settings
 from marketplace_pipeline.parser.factory import build_parser
 from marketplace_pipeline.parser.mock import MockParser
 from marketplace_pipeline.parser.ozon import OzonParser
+from tests.helpers import ozon_parser_for_httpx_mock
 
 
 @pytest.fixture
@@ -71,7 +72,7 @@ def test_ozon_collect_stops_at_target(httpx_mock: HTTPXMock) -> None:
         '{"sku":3,"title":"C","price":"300 ₽"}'
     )
     httpx_mock.add_response(json={"widgetStates": {"w": raw}})
-    parser = OzonParser(Settings(MOCK_PARSER=False))
+    parser = ozon_parser_for_httpx_mock(Settings(MOCK_PARSER=False))
     result = parser.collect(2)
     assert result.collected_count == 2
     assert len(httpx_mock.get_requests()) == 1

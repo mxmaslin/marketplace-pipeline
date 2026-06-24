@@ -52,6 +52,12 @@ marketplace-pipeline
 - `MOCK_LLM=true` — эвристическая классификация без OpenAI
 - `MOCK_CRM=true` — логирование задач без AmoCRM
 
+> **Секреты:** скопируйте `.env.example` → `.env` и подставьте **свои** ключи. Файл `.env` не коммитится. Для live Ozon нужен **собственный** прокси-лист (`OZON_PROXY_LIST`), опционально `PROXY_MARKET_API_KEY`, `OZON_COOKIE`, OpenAI и AmoCRM — см. [docs/REVIEWER_GUIDE.md §15](docs/REVIEWER_GUIDE.md).
+
+## Live Ozon (опционально)
+
+При `MOCK_PARSER=false` пайплайн ходит в Ozon через `OzonHttpClient` (ротация UA/viewport, cookie jar, jitter). Рекомендуется residential RU + [proxy.market](https://proxy.market). Исчерпанный трафик → явная ошибка (`ProxyQuotaExhaustedError`, API `402`). Подробнее: [docs/ENV.md](docs/ENV.md), [docs/REVIEWER_GUIDE.md §15](docs/REVIEWER_GUIDE.md).
+
 ## Переменные окружения
 
 См. [`.env.example`](.env.example) и [docs/ENV.md](docs/ENV.md).
@@ -66,6 +72,8 @@ marketplace-pipeline
 | `API_KEY` | Защита `/api/v1/*` (пусто = без auth) |
 | `JOB_IDEMPOTENCY_TTL_SECONDS` | TTL для `Idempotency-Key` на submit job |
 | `OZON_PAGE_SIZE` | Размер страницы Ozon (default 36) |
+| `OZON_PROXY_LIST` | Свой HTTP(S) прокси-лист для live Ozon (не коммитить) |
+| `PROXY_MARKET_API_KEY` | Опционально: pre-flight проверка трафика proxy.market |
 | `REDIS_URL` | Celery broker, Redis idempotency, shared metrics, distributed rate limit |
 
 ## Архитектура
@@ -102,7 +110,7 @@ Scale: marketplace-pipeline-worker (Celery) → shared executor → Postgres job
 ## Тесты
 
 ```bash
-make test          # pytest, ≥95% coverage (~108 tests)
+make test          # pytest, ≥95% coverage (~137 tests)
 make ci            # ruff + pytest
 ```
 

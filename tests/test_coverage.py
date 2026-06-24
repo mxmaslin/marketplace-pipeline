@@ -22,8 +22,8 @@ from marketplace_pipeline.http_client import HttpClient
 from marketplace_pipeline.llm.classifier import SegmentClassifier, _chunk
 from marketplace_pipeline.models import CRMTaskPayload, PriceSegment, Product
 from marketplace_pipeline.parser.mock import MockParser
-from marketplace_pipeline.parser.ozon import OzonParser
 from marketplace_pipeline.pipeline import Pipeline
+from tests.helpers import http_client_for_settings, ozon_parser_for_httpx_mock
 
 
 def test_get_settings() -> None:
@@ -221,7 +221,7 @@ def test_metrics_registry_counters() -> None:
 
 def test_ozon_collect_degraded(httpx_mock: HTTPXMock) -> None:
     httpx_mock.add_response(status_code=503)
-    parser = OzonParser(Settings(MOCK_PARSER=False, HTTP_MAX_RETRIES=1))
+    parser = ozon_parser_for_httpx_mock(Settings(MOCK_PARSER=False, HTTP_MAX_RETRIES=1))
     result = parser.collect(10)
     assert result.degraded is True
     assert result.collected_count == 0
@@ -229,7 +229,7 @@ def test_ozon_collect_degraded(httpx_mock: HTTPXMock) -> None:
 
 def test_ozon_collect_exhausted_category(httpx_mock: HTTPXMock) -> None:
     httpx_mock.add_response(json={"widgetStates": {}})
-    parser = OzonParser(Settings(MOCK_PARSER=False))
+    parser = ozon_parser_for_httpx_mock(Settings(MOCK_PARSER=False))
     result = parser.collect(10)
     assert result.exhausted is True
     assert result.collected_count == 0
@@ -242,7 +242,7 @@ def test_ozon_skips_duplicate_and_invalid_price(httpx_mock: HTTPXMock) -> None:
         '{"sku":2,"title":"B","price":"free"}'
     )
     httpx_mock.add_response(json={"widgetStates": {"tileGridDesktop": raw}})
-    parser = OzonParser(Settings(MOCK_PARSER=False))
+    parser = ozon_parser_for_httpx_mock(Settings(MOCK_PARSER=False))
     result = parser.collect(1)
     assert result.collected_count == 1
 
@@ -256,7 +256,11 @@ def test_pipeline_logs_exhausted(tmp_path: Path, httpx_mock: HTTPXMock) -> None:
         DEMO_PRODUCT_COUNT=5,
     )
     httpx_mock.add_response(json={"widgetStates": {}})
-    result = Pipeline(settings, output_dir=tmp_path).run()
+    result = Pipeline(
+        settings,
+        output_dir=tmp_path,
+        ozon_http_client=http_client_for_settings(settings),
+    ).run()
     assert result.parser_result.exhausted is True
 
 

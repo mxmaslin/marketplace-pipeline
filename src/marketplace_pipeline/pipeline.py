@@ -39,11 +39,13 @@ class Pipeline:
         settings: Settings,
         *,
         http_client: HttpClient | None = None,
+        ozon_http_client: HttpClient | None = None,
         output_dir: Path | None = None,
     ) -> None:
         self._container = Container(
             settings,
             http_client=http_client,
+            ozon_collector_http_client=ozon_http_client,
             output_dir=output_dir,
         )
 

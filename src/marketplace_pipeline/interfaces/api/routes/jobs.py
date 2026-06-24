@@ -7,12 +7,20 @@ from marketplace_pipeline.application.use_cases.pipeline_jobs import (
     ListPipelineJobsUseCase,
     SubmitPipelineJobUseCase,
 )
-from marketplace_pipeline.domain.exceptions import PipelineConfigurationError
+from marketplace_pipeline.domain.exceptions import (
+    PipelineConfigurationError,
+    ProxyQuotaExhaustedError,
+)
 from marketplace_pipeline.domain.models.pipeline_job import PipelineJob
 from marketplace_pipeline.domain.services.pipeline_prerequisites import (
     PipelinePrerequisites,
     validate_pipeline_prerequisites,
 )
+from marketplace_pipeline.domain.services.proxy_prerequisites import (
+    ProxyPrerequisites,
+    validate_proxy_prerequisites,
+)
+from marketplace_pipeline.infrastructure.composition.factories import build_proxy_quota_checker
 from marketplace_pipeline.interfaces.api.schemas.jobs import (
     JobCreateRequest,
     JobListResponse,
@@ -54,6 +62,22 @@ async def create_job(
         )
     except PipelineConfigurationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    checker = build_proxy_quota_checker(settings)
+    try:
+        validate_proxy_prerequisites(
+            ProxyPrerequisites(
+                mock_parser=settings.mock_parser,
+                ozon_proxy_list=settings.ozon_proxy_list,
+                proxy_market_api_key=settings.proxy_market_api_key,
+            ),
+            quota_checker=checker,
+        )
+    except ProxyQuotaExhaustedError as exc:
+        raise HTTPException(status_code=402, detail=str(exc)) from exc
+    finally:
+        if checker is not None and hasattr(checker, "close"):
+            checker.close()
 
     job = PipelineJob(collection_target=target, correlation_id=correlation_id)
     job, is_replay = SubmitPipelineJobUseCase(

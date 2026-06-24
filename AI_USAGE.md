@@ -47,7 +47,7 @@
 - Job stores: SQLite + PostgreSQL; Alembic migrations
 - Job idempotency: `Idempotency-Key` on submit (memory/Redis)
 - Observability: `MetricsRegistry` (in-memory or Redis), JSON logs, correlation_id, OTEL, Sentry (optional)
-- pytest (~108 tests, ~95% coverage), Docker, compose scale profile, CI
+- pytest (~137 tests, ~95% coverage), Docker, compose scale profile, CI
 - Docs: AGENTS.md, SCALE.md, rules, skills
 
 ## Исправлено / уточнено вручную (кандидатом)
@@ -89,7 +89,7 @@ cp .env.example .env    # MOCK_PARSER/MOCK_LLM/MOCK_CRM=true по умолчан
 
 | Требование vision.md | Команда / артефакт | Ожидание |
 |----------------------|-------------------|----------|
-| pytest, coverage ≥70% | `make ci` | ruff clean, **108 passed**, coverage **≥95%** |
+| pytest, coverage ≥70% | `make ci` | ruff clean, **137 passed**, coverage **≥95%** |
 | Моки внешних HTTP | `pytest tests/test_ozon_collect.py tests/test_llm.py tests/test_crm.py -v` | все green, без сети |
 | AI_USAGE.md | этот файл | промпты, архитектура, ограничения |
 | docker-compose | `docker compose up api --build` | API на :8000, `curl /health` → 200 |
@@ -106,6 +106,7 @@ cp .env.example .env    # MOCK_PARSER/MOCK_LLM/MOCK_CRM=true по умолчан
 | `OZON_PAGE_SIZE` | `test_ozon_page_size_caps_products_per_page` | лимит товаров на страницу |
 | Retry 429 + exponential backoff | `tests/test_pipeline.py::test_http_client_retries_on_429` | tenacity, без падения |
 | Graceful degradation | `tests/test_pipeline.py::test_pipeline_graceful_degradation` | partial data, `degraded=True`, exit 0 |
+| proxy.market traffic exhausted | `tests/test_proxy_market_quota.py` | pre-flight `ProxyQuotaExhaustedError`, API 402 |
 | Partial collection (категория исчерпана) | `test_ozon_collect_category_exhausted_before_target` | `exhausted=True`, warning, не crash |
 | DEMO_MODE (50–100 товаров) | `make run` | собирает **100** (`DEMO_PRODUCT_COUNT`, настраивается) |
 
@@ -208,7 +209,7 @@ rg "from marketplace_pipeline\.(infrastructure|interfaces|application)" src/mark
 
 **Минимум по vision.md:**
 
-- [ ] `make ci` — green (108 tests, ≥95% coverage)
+- [ ] `make ci` — green (137 tests, ≥95% coverage)
 - [ ] `make run` — exit 0, `data/enriched_products.json` с сегментами
 - [ ] CRM: 2 задачи (Премиум + Эконом), Стандарт только в JSON
 - [ ] Повторный `make run` → CRM `reused=true`
@@ -228,6 +229,8 @@ rg "from marketplace_pipeline\.(infrastructure|interfaces|application)" src/mark
 - Реальный сбор **10 000** товаров с живым Ozon — только mock + unit/smoke тесты
 - Создание задач в **боевой** AmoCRM — нужен OAuth token
 - Полный staging Postgres/Redis/Celery — unit-тесты с моками; см. [docs/SCALE.md](docs/SCALE.md)
+
+**Live Ozon + proxy.market:** при `PROXY_MARKET_API_KEY` пайплайн делает pre-flight проверку трафика; исчерпанный пакет → явная ошибка (CLI exit 1, API 402), не тихий `collected=0`. См. [docs/REVIEWER_GUIDE.md §15](docs/REVIEWER_GUIDE.md).
 
 Это ограничение тестового задания, не дефект реализации.
 
