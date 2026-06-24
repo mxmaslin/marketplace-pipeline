@@ -108,6 +108,65 @@ def test_proxy_market_quota_checker_api_error_skips(httpx_mock) -> None:
     checker.close()
 
 
+def test_proxy_market_quota_checker_no_active_packages(httpx_mock) -> None:
+    httpx_mock.add_response(
+        url="https://api.dashboard.proxy.market/dev-api/v2/packages/test-key?page=1&perPage=50",
+        json={"data": [{"id": 1, "name": "old", "total": 1000, "used": 0, "is_active": False}]},
+    )
+    checker = ProxyMarketQuotaChecker(api_key="test-key")
+    with pytest.raises(ProxyQuotaExhaustedError, match="no active traffic packages"):
+        checker.check_quota_available()
+    checker.close()
+
+
+def test_proxy_market_quota_checker_balance_payload_invalid(httpx_mock) -> None:
+    httpx_mock.add_response(
+        url="https://api.dashboard.proxy.market/dev-api/v2/packages/test-key?page=1&perPage=50",
+        json={
+            "data": [
+                {
+                    "id": 1,
+                    "name": "pkg",
+                    "total": 2_147_483_648,
+                    "used": 1_048_576,
+                    "is_active": True,
+                }
+            ]
+        },
+    )
+    httpx_mock.add_response(
+        url="https://api.dashboard.proxy.market/dev-api/balance/test-key",
+        json={"balance": "not-a-number"},
+    )
+    checker = ProxyMarketQuotaChecker(api_key="test-key")
+    checker.check_quota_available()
+    checker.close()
+
+
+def test_proxy_market_quota_checker_balance_api_error(httpx_mock) -> None:
+    httpx_mock.add_response(
+        url="https://api.dashboard.proxy.market/dev-api/v2/packages/test-key?page=1&perPage=50",
+        json={
+            "data": [
+                {
+                    "id": 1,
+                    "name": "pkg",
+                    "total": 2_147_483_648,
+                    "used": 1_048_576,
+                    "is_active": True,
+                }
+            ]
+        },
+    )
+    httpx_mock.add_response(
+        url="https://api.dashboard.proxy.market/dev-api/balance/test-key",
+        status_code=503,
+    )
+    checker = ProxyMarketQuotaChecker(api_key="test-key")
+    checker.check_quota_available()
+    checker.close()
+
+
 def test_proxy_package_remaining_bytes() -> None:
     package = ProxyPackageQuota(
         package_id=1,

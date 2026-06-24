@@ -143,6 +143,35 @@ def test_get_composer_json_raises_after_403_retries() -> None:
             client.get_composer_json(page_path="/category/test/")
 
 
+def test_get_composer_json_raises_proxy_quota_on_http_402() -> None:
+    from marketplace_pipeline.domain.exceptions import ProxyQuotaExhaustedError
+
+    client = OzonHttpClient(
+        api_base_url="https://www.ozon.ru/api/composer-api.bx/page/json/v2",
+        category_path="/category/test/",
+        warmup_session=False,
+        request_delay_seconds=0,
+        max_retries=1,
+    )
+    mock_response = MagicMock()
+    mock_response.status_code = 402
+    mock_response.text = "payment required"
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "402",
+        request=httpx.Request("GET", "https://www.ozon.ru"),
+        response=mock_response,
+    )
+    mock_response.cookies = {}
+    mock_http = MagicMock()
+    mock_http.get.return_value = mock_response
+    mock_http.cookies = MagicMock()
+    mock_http.cookies.set = MagicMock()
+
+    with patch.object(client, "_client_for_proxy", return_value=mock_http):
+        with pytest.raises(ProxyQuotaExhaustedError, match="HTTP 402"):
+            client.get_composer_json(page_path="/category/test/")
+
+
 def test_close_releases_clients() -> None:
     client = OzonHttpClient(
         api_base_url="https://www.ozon.ru/api/composer-api.bx/page/json/v2",
